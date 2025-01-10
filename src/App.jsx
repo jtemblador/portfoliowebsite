@@ -86,7 +86,7 @@ const MainContent = () => {
         <section id="experience" className="max-w-3xl">
           <h2 className="text-3xl font-bold mb-6">Experience</h2>
           <div className="space-y-8">
-            <div className="bg-[#112240] p-6 rounded-lg hover:bg-[#1a2f50] transition-colors">
+            <div className="bg-[#112240] p-6 rounded-lg hover:bg-[#1a2f70] transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <h3 className="text-xl font-bold text-white">Civil Analyst</h3>
@@ -119,7 +119,7 @@ const MainContent = () => {
               </div>
             </div>
 
-            <div className="bg-[#112240] p-6 rounded-lg hover:bg-[#1a2f50] transition-colors">
+            <div className="bg-[#112240] p-6 rounded-lg hover:bg-[#1a2f70] transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <h3 className="text-xl font-bold text-white">Bass Player & Band Leader</h3>
@@ -152,7 +152,7 @@ const MainContent = () => {
               </div>
             </div>
 
-            <div className="bg-[#112240] p-6 rounded-lg hover:bg-[#1a2f50] transition-colors">
+            <div className="bg-[#112240] p-6 rounded-lg hover:bg-[#1a2f70] transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <h3 className="text-xl font-bold text-white">Caregiver</h3>
@@ -181,23 +181,72 @@ const MainContent = () => {
               </div>
             </div>
           </div>
+
+          {/* View Full Resume */}
+            <div className="mt-4 ml-6">
+              <a
+                href="/JoseTrinidadTemblador_Resume.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex items-center text-sm text-white hover:text-green-400 transition-colors relative"
+              >
+                  <span className="relative after:absolute after:w-[145px] after:h-[1px] after:bg-green-400 after:bottom-0 after:left-0 after:scale-x-0 after:origin-left group-hover:after:scale-x-100 after:transition-transform">
+                    View Full Resume
+                  <span className="ml-2 transform group-hover:translate-x-2 transition-transform inline-block">→</span>
+                </span>
+              </a>
+          </div>
         </section>
 
         {/* Projects Section */}
         <section id="projects" className="max-w-3xl">
           <h2 className="text-3xl font-bold mb-6">Some Things I've Built</h2>
           <div className="grid gap-6">
-            <div className="bg-[#112240] p-6 rounded-lg">
-              <h3 className="text-xl font-bold mb-2">Featured Project</h3>
+            <div className="bg-[#112240] p-6 rounded-lg hover:bg-[#1a2f70] transition-colors">
+              <h3 className="text-xl font-bold mb-2">Blackjack Game</h3>
               <p className="text-gray-400 mb-4">
-                A brief description of your project. What it does, what technologies
-                you used, and what you learned from building it.
+                A console-based Blackjack game implemented in C++ utilizing Object-Oriented Programming principles. 
+                Features include player betting, multiple hands, and dealer AI. The project showcases the use of 
+                polymorphism and abstraction to create a modular and maintainable codebase.
               </p>
-              <div className="flex space-x-4">
-                <a href="#" className="text-green-400 hover:text-green-300">GitHub</a>
-                <a href="#" className="text-green-400 hover:text-green-300">Live Demo</a>
+              <div className="flex space-x-4 ">
+                <a 
+                  href="https://github.com/jtemblador/Portfolio/tree/main/Projects/Blackjack" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-green-400 hover:text-green-300"
+                >
+                  GitHub
+                </a>
+                <div className="relative group">
+                  <span className="text-green-400 hover:text-green-300 cursor-pointer">Live Demo</span>
+                  <div className="absolute hidden group-hover:block left-0 mt-2 p-2 bg-[#1a334d] rounded-lg shadow-lg z-10">
+                    <img src="/blackjack1.gif" alt="Blackjack Demo" className="max-w-[300px] rounded" />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="text-sm bg-[#1a334d] rounded px-3 py-1">C++</span>
+                <span className="text-sm bg-[#1a334d] rounded px-3 py-1">OOP</span>
+                <span className="text-sm bg-[#1a334d] rounded px-3 py-1">Data Structures</span>
               </div>
             </div>
+          </div>
+
+          {/* View Portfolio Button */}
+          <div className="mt-4 ml-6">
+            <a
+              href="/JoseTrinidadTemblador_Resume.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex items-center text-sm text-white hover:text-green-400 transition-colors relative"
+  >
+                <span className="relative after:absolute after:w-[145px] after:h-[1px] after:bg-green-400 after:bottom-0 after:left-0 after:scale-x-0 after:origin-left group-hover:after:scale-x-100 after:transition-transform">
+                  View Full Portfolio
+                <span className="ml-2 transform group-hover:translate-x-2 transition-transform inline-block">→</span>
+              </span>
+            </a>
+
           </div>
         </section>
       </div>
@@ -207,8 +256,22 @@ const MainContent = () => {
 
 // Main App Component
 const App = () => {
+  React.useEffect(() => {
+    const handleMouseMove = (event) => {
+      document.documentElement.style.setProperty('--mouse-x', `${event.clientX}px`);
+      document.documentElement.style.setProperty('--mouse-y', `${event.clientY}px`);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+
   return (
     <div className="bg-[#0a192f]">
+      <div className="mouse-highlight" />
       <Sidebar />
       <MainContent />
     </div>
