@@ -7,9 +7,21 @@ export default {
   theme: {
     extend: {
       keyframes: {
-        glow: {
-          '0%, 100%': { textShadow: '0 0 10px rgba(72, 199, 116, 0.8)' },
-          '50%': { textShadow: '0 0 20px rgba(72, 199, 116, 1)' },
+        'glow-dark': {
+          '0%, 100%': { 
+            textShadow: '0 0 10px rgba(74, 222, 128, 0.8), 0 0 20px rgba(74, 222, 128, 0.6), 0 0 30px rgba(74, 222, 128, 0.4)'
+          },
+          '50%': { 
+            textShadow: '0 0 20px rgba(74, 222, 128, 1), 0 0 30px rgba(74, 222, 128, 0.8), 0 0 40px rgba(74, 222, 128, 0.6)'
+          },
+        },
+        'glow-light': {
+          '0%, 100%': { 
+            textShadow: '0 0 10px rgba(255, 0, 0, 0.8), 0 0 20px rgba(255, 0, 0, 0.6), 0 0 30px rgba(255, 0, 0, 0.4)'
+          },
+          '50%': { 
+            textShadow: '0 0 20px rgba(255, 0, 0, 1), 0 0 30px rgba(255, 0, 0, 0.8), 0 0 40px rgba(255, 0, 0, 0.6)'
+          },
         },
         slideFadeIn: {
           '0%': { opacity: '0', transform: 'translateX(-20px)' },
@@ -21,7 +33,8 @@ export default {
         },
       },
       animation: {
-        glow: 'glow 1s ease-in-out infinite',
+        'glow-dark': 'glow-dark 1s ease-in-out infinite',
+        'glow-light': 'glow-light 1s ease-in-out infinite',
         slideFadeIn: 'slideFadeIn 0.5s ease-out',
         bounceOnce: 'bounceOnce 0.5s ease-out',
       },

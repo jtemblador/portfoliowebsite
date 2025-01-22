@@ -29,15 +29,23 @@ const ThemeToggle = ({ isDark, onToggle }) => {
 // Left Sidebar Component (Fixed)
 const Sidebar = ({activeSection, isDark}) => {
   return (
-    <div className="fixed w-[735px] h-screen bg-[#11224a]">
+    <div className={`fixed w-[735px] h-screen transition-colors duration-300 ${
+      isDark ? 'bg-[#11224a]' : 'bg-[#79583E]'
+    }`}>
       {/* Start of About Me Section */}
       <div className="max-w-[1600px] mx-auto px-32 h-full flex flex-col justify-between">
         <div className="flex flex-col">
-        <h1 className="text-6xl text-white font-bold mb-8 mt-28 cursor-pointer select-none">Jose Temblador</h1>
-          <h2 className="text-xl text-white mb-6">Front End Engineer</h2>
-          <p className="text-gray-400 mb-12 max-w-xs">
-            I build accessible, pixel-perfect digital experiences for the web.
-          </p>
+        <h1 className={`text-6xl font-bold mb-8 mt-28 cursor-pointer select-none ${
+          isDark ? 'text-white' : 'text-[#ffe1a6]'
+        }`}>Jose Temblador</h1>
+        <h2 className={`text-xl mb-6 ${
+          isDark ? 'text-white' : 'text-[#ffe1a6]'
+        }`}>Front End Engineer</h2>
+        <p className={`mb-12 max-w-xs ${
+          isDark ? 'text-gray-400' : 'text-[#ffd787]'
+        }`}>
+          I build accessible, pixel-perfect digital experiences for the web.
+        </p>
           
           {/* Navigation Links */}
           <nav className="space-y-3">
@@ -45,10 +53,16 @@ const Sidebar = ({activeSection, isDark}) => {
               href="#about"
               className={`font-bold block transition-all ${
                 activeSection === 'about'
-                  ? 'text-green-400 animate-glow'
-                  : isDark 
-                    ? 'text-gray-400 hover:text-white'
-                    : 'text-[#79583E]/70 hover:text-[#79583E]'
+                ? isDark 
+                  // Dark Mode (Highlighed text)
+                  ? 'text-green-400 animate-glow-dark' 
+                  // Light Mode (Highlighed text)
+                  : 'text-[#ff0000] animate-glow-light'
+                : isDark 
+                  // Dark Mode (Un-Highlighed text)
+                  ? 'text-gray-400 hover:text-white'
+                  // Light Mode (Un-Highlighed text)
+                  : 'text-[#e10000] hover:text-[#ffd787]'
               }`}
             >
               About Me
@@ -57,8 +71,16 @@ const Sidebar = ({activeSection, isDark}) => {
               href="#experience"
               className={`font-bold block transition-all ${
                 activeSection === 'experience'
-                  ? 'text-green-400 animate-glow'
-                  : 'text-gray-400 hover:text-white'
+                ? isDark 
+                  // Dark Mode (Highlighed text)
+                  ? 'text-green-400 animate-glow-dark' 
+                  // Light Mode (Highlighed text)
+                  : 'text-[#ff0000] animate-glow-light'
+                : isDark 
+                  // Dark Mode (Un-Highlighed text)
+                  ? 'text-gray-400 hover:text-white'
+                  // Light Mode (Un-Highlighed text)
+                  : 'text-[#e10000] hover:text-[#ffd787]'
               }`}
             >
               Experience
@@ -67,8 +89,16 @@ const Sidebar = ({activeSection, isDark}) => {
               href="#projects"
               className={`font-bold block transition-all ${
                 activeSection === 'projects'
-                  ? 'text-green-400 animate-glow'
-                  : 'text-gray-400 hover:text-white'
+                ? isDark 
+                  // Dark Mode (Highlighed text)
+                  ? 'text-green-400 animate-glow-dark' 
+                  // Light Mode (Highlighed text)
+                  : 'text-[#ff0000] animate-glow-light'
+                : isDark 
+                  // Dark Mode (Un-Highlighed text)
+                  ? 'text-gray-400 hover:text-white'
+                  // Light Mode (Un-Highlighed text)
+                  : 'text-[#e10000] hover:text-[#ffd787]'
               }`}
             >
               Projects
@@ -357,6 +387,7 @@ const App = () => {
       className={`transition-colors duration-300 ${
         isDark ? 'bg-[#0a192f]' : 'bg-[#E6A96B]'
       }`}
+      data-theme={isDark ? 'dark' : 'light'}
     >
       <div className="mouse-highlight" />
       <ThemeToggle isDark={isDark} onToggle={() => setIsDark(!isDark)} />
