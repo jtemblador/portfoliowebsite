@@ -1,7 +1,33 @@
 import React from 'react';
 
+// Theme Toggle Button Component
+const ThemeToggle = ({ isDark, onToggle }) => {
+  return (
+    <button
+      onClick={onToggle}
+      className="fixed top-6 right-6 z-50 p-2 rounded-full transition-colors duration-200"
+      style={{
+        backgroundColor: isDark ? '#112240' : '#79583E',
+        border: `2px solid ${isDark ? '#4a5568' : '#79583E'}`
+      }}
+    >
+      {isDark ? (
+        // Sun icon for dark mode
+        <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ) : (
+        // Moon icon for light mode
+        <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+      )}
+    </button>
+  );
+};
+
 // Left Sidebar Component (Fixed)
-const Sidebar = ({activeSection}) => {
+const Sidebar = ({activeSection, isDark}) => {
   return (
     <div className="fixed w-[735px] h-screen bg-[#11224a]">
       {/* Start of About Me Section */}
@@ -20,7 +46,9 @@ const Sidebar = ({activeSection}) => {
               className={`font-bold block transition-all ${
                 activeSection === 'about'
                   ? 'text-green-400 animate-glow'
-                  : 'text-gray-400 hover:text-white'
+                  : isDark 
+                    ? 'text-gray-400 hover:text-white'
+                    : 'text-[#79583E]/70 hover:text-[#79583E]'
               }`}
             >
               About Me
@@ -59,6 +87,7 @@ const Sidebar = ({activeSection}) => {
         </div>
       </div>
     </div>
+    
   );
 };
 
@@ -270,24 +299,26 @@ const MainContent = () => {
                 href="/JoseTrinidadTemblador_Resume.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group inline-flex items-center text-sm text-white hover:text-green-500 transition-colors relative"
-    >
+                className="group inline-flex items-center text-sm text-white hover:text-green-500 transition-colors relative">
                   <span className="relative after:absolute after:w-[145px] after:h-[1px] after:bg-green-500 after:bottom-0 after:left-0 after:scale-x-0 after:origin-left group-hover:after:scale-x-100 after:transition-transform">
                     View Full Portfolio
                   <span className="ml-2 transform group-hover:translate-x-2 transition-transform inline-block">→</span>
                 </span>
               </a>
-
             </div>
+            {/** extra padding at bottom of webpage */}
+            <div className="pt-28  space-y-16"></div>
           </section>
         </div>
       </div>
     </div>
+    
   );
 };
 
 // Main App Component
 const App = () => {
+  const [isDark, setIsDark] = React.useState(true);
   const [activeSection, setActiveSection] = React.useState('about');
 
   React.useEffect(() => {
@@ -295,7 +326,7 @@ const App = () => {
       document.documentElement.style.setProperty('--mouse-x', `${event.clientX}px`);
       document.documentElement.style.setProperty('--mouse-y', `${event.clientY}px`);
     };
-
+    
     const observerOptions = {
       root: null, // Observes within the viewport
       threshold: 0.5, // 50% of the section needs to be visible
@@ -322,10 +353,15 @@ const App = () => {
   }, []);
 
   return (
-    <div className="bg-[#0a192f]">
+    <div 
+      className={`transition-colors duration-300 ${
+        isDark ? 'bg-[#0a192f]' : 'bg-[#E6A96B]'
+      }`}
+    >
       <div className="mouse-highlight" />
-      <Sidebar activeSection={activeSection} />
-      <MainContent />
+      <ThemeToggle isDark={isDark} onToggle={() => setIsDark(!isDark)} />
+      <Sidebar activeSection={activeSection} isDark={isDark} />
+      <MainContent isDark={isDark} />
     </div>
   );
 };
