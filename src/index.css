@@ -1,20 +1,32 @@
 ::selection {
-    background: #166534;
-    color: #ffffff;
-  }
-
-.mouse-highlight {
-    background: radial-gradient(
-      600px circle at var(--mouse-x) var(--mouse-y),
-      rgba(29, 78, 216, 0.15),
-      transparent 40%
-    );
-    pointer-events: none;
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-  }
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+  background: var(--selection-bg, #166534);
+  color: #ffffff;
+ }
+ 
+ [data-theme='light'] ::selection {
+  background: #b10000;
+ }
+ 
+ .mouse-highlight {
+  background: radial-gradient(
+    1200px circle at var(--mouse-x) var(--mouse-y),
+    var(--highlight-color, rgba(29, 78, 216, 0.15)),
+    transparent 40%
+  );
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+ }
+ 
+ [data-theme='light'] .mouse-highlight {
+  background: radial-gradient(
+    1200px circle at var(--mouse-x) var(--mouse-y),
+    var(--highlight-color, rgba(114, 51, 0, 0.2)),
+    transparent 40%
+  );
+ }
+ 
+ @tailwind base;
+ @tailwind components;
+ @tailwind utilities;
