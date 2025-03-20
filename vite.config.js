@@ -19,8 +19,8 @@ export default defineConfig({
   publicDir: 'public', // Keeping your publicDir setting
   resolve: {
     alias: {
-      '@': '/src',
-      '@assets': '/src/assets'
+      '@': resolve(__dirname, './src'),
+      '@assets': resolve(__dirname, './src/assets')
     }
   },
 
