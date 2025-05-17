@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+tree.txt
 *.local
 
 # Editor directories and files
@@ -26,3 +27,6 @@ dist-ssr
 # Make sure these are NOT ignored
 !.github
 !.github/**
+
+# workflow giude
+workflow-guide.txt
