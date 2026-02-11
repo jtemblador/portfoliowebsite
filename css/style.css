@@ -28,7 +28,7 @@ img { max-width: 100%; display: block; }
   --toggle-bg:     #112240;
   --toggle-border: #4a5568;
   --highlight-rgb: 29, 78, 216;
-  --highlight-alpha: 0.15;
+  --highlight-alpha: 0.25;
   --demo-popup-bg: #1a334d;
   --glow-r: 74; --glow-g: 222; --glow-b: 128;
 }
@@ -54,7 +54,7 @@ img { max-width: 100%; display: block; }
   --toggle-bg:     #79583E;
   --toggle-border: #79583E;
   --highlight-rgb: 114, 51, 0;
-  --highlight-alpha: 0.2;
+  --highlight-alpha: 0.3;
   --demo-popup-bg: #5e432e;
   --glow-r: 255; --glow-g: 0; --glow-b: 0;
 }
@@ -65,7 +65,7 @@ img { max-width: 100%; display: block; }
 /* ===== Mouse Highlight ===== */
 .mouse-highlight {
   background: radial-gradient(
-    1200px circle at var(--mouse-x, 0) var(--mouse-y, 0),
+    600px circle at var(--mouse-x, 0) var(--mouse-y, 0),
     rgba(var(--highlight-rgb), var(--highlight-alpha)),
     transparent 40%
   );
