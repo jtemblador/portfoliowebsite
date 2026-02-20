@@ -28,7 +28,7 @@
   // --- IntersectionObserver for Nav ---
   const navLinks = document.querySelectorAll('.sidebar nav a');
 
-  const observer = new IntersectionObserver(
+  const navObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
@@ -41,5 +41,29 @@
     { threshold: 0.5 }
   );
 
-  document.querySelectorAll('section[id]').forEach((s) => observer.observe(s));
+  document.querySelectorAll('section[id]').forEach((s) => navObserver.observe(s));
+
+  // --- Fade-in on Scroll ---
+  const fadeElements = document.querySelectorAll('.card, .section-text, .arrow-link');
+  fadeElements.forEach((el, i) => {
+    el.classList.add('fade-in');
+    el.style.transitionDelay = (i % 5) * 150 + 'ms';
+  });
+
+  const fadeObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          // Clear the stagger delay after fade-in so it doesn't affect hover transitions
+          const delay = parseFloat(entry.target.style.transitionDelay) || 0;
+          setTimeout(() => { entry.target.style.transitionDelay = ''; }, delay + 600);
+          fadeObserver.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.1 }
+  );
+
+  fadeElements.forEach((el) => fadeObserver.observe(el));
 })();
