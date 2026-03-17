@@ -484,6 +484,52 @@ img { max-width: 100%; display: block; }
 /* ===== Bottom Spacer ===== */
 .bottom-spacer { padding-top: 7rem; }
 
+/* ===== Mobile ===== */
+@media (max-width: 768px) {
+  /* Hide the fixed left-panel background */
+  .page::before { display: none; }
+
+  /* Stack sidebar + main vertically */
+  .container {
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+  }
+
+  /* Sidebar becomes a normal block at the top */
+  .sidebar {
+    position: static;
+    width: 100%;
+    max-height: none;
+    padding: 2rem 1.5rem 1.5rem;
+    background-color: var(--bg-sidebar);
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+
+  /* Hide the nav links on mobile (page scrolls linearly) */
+  .sidebar nav { display: none; }
+
+  /* Sidebar footer sits right below tagline */
+  .sidebar-footer { margin-top: 1.5rem; }
+
+  /* Main content full width */
+  .main-content {
+    width: 100%;
+    max-width: 100%;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* Shrink bottom spacer */
+  .bottom-spacer { padding-top: 2rem; }
+
+  /* Card headers can wrap on small screens */
+  .card-header { flex-wrap: wrap; gap: 0.5rem; }
+  .card-header span { white-space: normal; }
+
+  /* Theme toggle stays top-right, just ensure it doesn't overlap */
+  .theme-toggle { top: 1rem; right: 1rem; }
+}
+
 /* ===== Glow Animation ===== */
 @keyframes glow {
   0%, 100% {
