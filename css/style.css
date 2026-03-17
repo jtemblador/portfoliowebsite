@@ -228,11 +228,29 @@ img { max-width: 100%; display: block; }
   background-color: var(--accent);
 }
 
+/* Contact email */
+.contact-email {
+  display: inline-block;
+  margin-top: 0;
+  margin-bottom: 0;
+  font-size: 0.85rem;
+  color: var(--accent);
+  transition: color 0.2s;
+}
+.contact-email:hover { color: var(--accent-hover); }
+
+/* Sidebar footer (icons + email) */
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
 /* Social links */
 .socials {
   display: flex;
   gap: 1rem;
-  margin-bottom: 2rem;
 }
 .socials a {
   color: #8892b0;
