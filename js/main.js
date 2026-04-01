@@ -1,5 +1,5 @@
 (() => {
-  const body = document.body;
+  const html = document.documentElement;
 
   // --- Theme Toggle ---
   const toggle = document.getElementById('theme-toggle');
@@ -7,7 +7,7 @@
   const iconMoon = document.getElementById('icon-moon');
 
   function applyTheme(dark) {
-    body.setAttribute('data-theme', dark ? 'dark' : 'light');
+    html.setAttribute('data-theme', dark ? 'dark' : 'light');
     iconSun.style.display  = dark ? 'block' : 'none';
     iconMoon.style.display = dark ? 'none'  : 'block';
   }
@@ -15,7 +15,7 @@
   applyTheme(true); // default dark
 
   toggle.addEventListener('click', () => {
-    const isDark = body.getAttribute('data-theme') === 'dark';
+    const isDark = html.getAttribute('data-theme') === 'dark';
     applyTheme(!isDark);
   });
 
