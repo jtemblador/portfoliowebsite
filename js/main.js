@@ -19,6 +19,47 @@
     applyTheme(!isDark);
   });
 
+  // --- Star Field ---
+  const canvas = document.getElementById('stars');
+  const ctx = canvas.getContext('2d');
+  let stars = [];
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  function initStars() {
+    stars = [];
+    for (let i = 0; i < 180; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 1.3 + 0.2,
+        alpha: Math.random() * 0.6 + 0.2,
+        speed: Math.random() * 0.0008 + 0.0003,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  function drawStars(t) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of stars) {
+      const a = s.alpha * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase));
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(drawStars);
+  }
+
+  resizeCanvas();
+  initStars();
+  requestAnimationFrame(drawStars);
+  window.addEventListener('resize', () => { resizeCanvas(); initStars(); });
+
   // --- Mouse Highlight ---
   window.addEventListener('mousemove', (e) => {
     document.documentElement.style.setProperty('--mouse-x', e.clientX + 'px');
