@@ -1,6 +1,6 @@
 /* ===== Reset ===== */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-html { scroll-behavior: smooth; background-color: var(--bg-page); }
+html { scroll-behavior: smooth; background-color: var(--bg-page); font-size: 112%; }
 body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; font-size: 0.875rem; }
 a { text-decoration: none; color: inherit; }
 ul { list-style: none; }
@@ -86,14 +86,19 @@ html[data-theme="light"] {
 .page {
   position: relative;
   background-color: var(--bg-page);
-  background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, rgba(255, 255, 255, 0) 1px);
-  background-size: 30px 30px;
   transition: background-color 0.3s;
   min-height: 100vh;
 }
-html[data-theme="light"] .page {
-  background-image: none;
+
+/* Star field canvas */
+#stars {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.8;
 }
+html[data-theme="light"] #stars { opacity: 0; }
 
 /* Left panel background color */
 .page::before {
@@ -136,12 +141,12 @@ html[data-theme="light"] .page {
 
 /* ===== Centered Container (like Brittany Chiang) ===== */
 .container {
-  max-width: 1280px;
+  max-width: 88rem;
   margin: 0 auto;
-  padding: 0 1.5rem;
+  padding: 0 3rem;
   display: flex;
   justify-content: space-between;
-  gap: 4rem;
+  gap: 3rem;
 }
 
 /* ===== Sidebar ===== */
@@ -160,7 +165,7 @@ html[data-theme="light"] .page {
 
 /* Sidebar text */
 .sidebar h1 {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   font-weight: 700;
   letter-spacing: -0.04em;
   margin-bottom: 1rem;
@@ -266,8 +271,8 @@ html[data-theme="light"] .sidebar .tagline { color: var(--text-sidebar-sub); }
 
 /* ===== Main Content ===== */
 .main-content {
-  width: 58%;
-  max-width: 600px;
+  width: 52%;
+  max-width: 48rem;
   padding-top: 6rem;
   padding-bottom: 6rem;
 }
