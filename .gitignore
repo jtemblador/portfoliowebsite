@@ -2,7 +2,24 @@
 *.sw?
 .vscode/
 .idea/
+.claude/
+.codex
+.playwright-mcp/
 prompt.md
+
+# Star viewer test harness (removed before ship)
+starfield_test.html
+STARFIELD_ROADMAP.md
+
+# Test screenshots
+test_*.png
+starfield_*.png
+test_images/
+
+# Raw star catalog (processed version is committed as data/stars.json)
+data/hygdata_v42.csv
+data/hygdata_v42.csv.gz
+data/stellarium_western.json
 
 # Make sure these are NOT ignored
 !.github
