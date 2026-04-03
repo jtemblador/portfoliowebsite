@@ -56,9 +56,9 @@ const PLANET_RADIUS_KM = {
 };
 
 const R_JUPITER_KM = 71492;
-// Screen dot radius: MIN_DOT + (MAX_DOT - MIN_DOT) * (r / R_JUPITER)
-const DOT_MIN = 2.0;  // CSS px
-const DOT_MAX = 12.0;
+// Screen dot radius: planets scaled by sqrt(radius) for better visual spread
+const DOT_MIN = 1.5;  // CSS px (Mercury/Pluto)
+const DOT_MAX = 8.0;  // CSS px (Jupiter)
 
 /** Evaluate orbital elements at time T (Julian centuries from J2000). */
 function evalElements(elems, T) {
@@ -184,7 +184,7 @@ export function planetPositions(jd) {
     const ra    = raDeg / 15;
     const dec   = Math.atan2(eqZ, Math.sqrt(eqX * eqX + eqY * eqY)) * R2D;
 
-    const screenR = DOT_MIN + (DOT_MAX - DOT_MIN) * (PLANET_RADIUS_KM[name] / R_JUPITER_KM);
+    const screenR = DOT_MIN + (DOT_MAX - DOT_MIN) * Math.sqrt(PLANET_RADIUS_KM[name] / R_JUPITER_KM);
 
     results.push({ name, ra, dec, screenR, distAU: R, helioDist: r, phase, phaseAngle, magnitude });
   }

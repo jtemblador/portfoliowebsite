@@ -610,7 +610,7 @@ function renderSun(scale, vf) {
   if (alpha <= 0) return;
 
   const px = cx + p.x * scale, py = cy - p.y * scale;
-  const sunR = 7;
+  const sunR = 8; // roughly Jupiter-sized on screen
 
   // Yellow core
   ctx.beginPath();
@@ -963,7 +963,7 @@ function updatePopup() {
         + `<div class="popup-type">${phaseName} (${pct}% illuminated)</div>`
         + popupRow('RA/Dec', formatRA(ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(dec))
         + popupRow('Az/Alt', `${formatAz(hz.az)}  ${formatAlt(hz.alt)}`)
-        + popupRow('Distance', moon ? moon.distAU.toFixed(5) + ' AU' : '—');
+        + popupRow('Distance', moon ? Math.round(moon.distAU * 149597870.7).toLocaleString() + ' km' : '—');
 
     } else if (target.type === 'constellation') {
       const con = constByAbbr.get(target.abbr);
