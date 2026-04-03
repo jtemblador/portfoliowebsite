@@ -29,8 +29,8 @@ const R2D = 180 / Math.PI;
 
 const MAG_BRIGHT = -1.5;
 const MAG_DIM    =  6.5;
-const R_MAX      =  4.0;
-const R_MIN      =  0.5;
+const R_MAX      =  5.5;   // brightest star radius (CSS px)
+const R_MIN      =  0.8;   // dimmest star radius
 const A_MAX      =  1.0;
 const A_MIN      =  0.15;
 
@@ -141,6 +141,7 @@ let starScreenCount = 0;
 let planetScreenBuf = [];
 let moonScreenPos = null;
 let constLabelScreen = [];
+let dsoScreenBuf = [];      // [{name, type, px, py, ra, dec, screenR}]
 
 // Star name reverse lookup: "ra,dec" → {name, con, hipID}
 let starNameLookup = null;
@@ -318,6 +319,18 @@ function findNearestConstLabel(clickX, clickY, threshold) {
   return best;
 }
 
+function findNearestDSO(clickX, clickY, threshold) {
+  let bestDist = threshold * threshold, best = null;
+  for (const d of dsoScreenBuf) {
+    const dx = d.px - clickX, dy = d.py - clickY;
+    const dist2 = dx * dx + dy * dy;
+    // Use screenR as hit area (at least threshold)
+    const hitR = Math.max(d.screenR, threshold);
+    if (dist2 < hitR * hitR && dist2 < bestDist) { bestDist = dist2; best = d; }
+  }
+  return best ? { type: 'dso', ...best } : null;
+}
+
 function lookupStarName(ra, dec) {
   if (!starNameLookup) return null;
   return starNameLookup.get(ra.toFixed(6) + ',' + dec.toFixed(5)) || null;
@@ -394,12 +407,12 @@ function renderConstellationLines(scale, vf) {
     if (!toggles.constLines && ha <= 0) continue;
 
     if (ha > 0) {
-      const a = 0.22 + (0.65 - 0.22) * ha;
+      const a = 0.35 + (0.65 - 0.35) * ha;
       ctx.strokeStyle = `rgba(${Math.round(255 - 155*ha)},${Math.round(255 - 75*ha)},255,${a.toFixed(3)})`;
-      ctx.lineWidth = 0.8 + 1.0 * ha;
+      ctx.lineWidth = 1.2 + 1.0 * ha;
     } else {
-      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 1.2;
     }
 
     for (const seg of c.resolvedLines) {
@@ -465,6 +478,7 @@ function renderSelection(scale, vf) {
 
 function renderDSOs(scale, vf) {
   const cullCos = Math.cos((view.fov / 2 + 5) * D2R);
+  dsoScreenBuf = [];
 
   for (let di = 0; di < data.dsos.length; di++) {
     const d = data.dsos[di];
@@ -503,6 +517,16 @@ function renderDSOs(scale, vf) {
       ctx.fillStyle = `rgba(240,220,190,${(b * 0.05).toFixed(3)})`;
       ctx.beginPath(); ctx.arc(px, py, screenR, 0, Math.PI * 2); ctx.fill();
     }
+
+    // Selection highlight for DSOs
+    if (selectedObject && selectedObject.type === 'dso' && selectedObject.name === d.name) {
+      const pulse = reducedMotion ? 1.0 : 0.7 + 0.3 * Math.sin(performance.now() * 0.003);
+      ctx.strokeStyle = `rgba(180,180,255,${pulse.toFixed(2)})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(px, py, screenR + 4, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    dsoScreenBuf.push({ name: d.name, type: d.type, px, py, ra: d.ra, dec: d.dec, screenR });
   }
 }
 
@@ -1056,9 +1080,7 @@ function syncOverlayButtons() {
 }
 
 function handleClick(clickX, clickY) {
-  // Priority: Moon > Planets > Constellation labels > Stars > Empty sky
-  // Labels checked before stars so clicking near a label selects the constellation,
-  // not a faint nearby star.
+  // Priority: Moon > Planets > DSOs > Constellation labels > Stars > Empty sky
 
   // Check Moon
   if (moonScreenPos) {
@@ -1070,9 +1092,13 @@ function handleClick(clickX, clickY) {
     }
   }
 
-  // Check planets (large targets, always on top)
+  // Check planets
   const planet = findNearestPlanet(clickX, clickY, 20);
   if (planet) { selectedObject = planet; clickedConst = null; return; }
+
+  // Check DSOs (nebulae, galaxies, clusters)
+  const dso = findNearestDSO(clickX, clickY, 20);
+  if (dso) { selectedObject = dso; clickedConst = null; return; }
 
   // Check constellation labels (priority over faint stars)
   const cl = findNearestConstLabel(clickX, clickY, 30);
