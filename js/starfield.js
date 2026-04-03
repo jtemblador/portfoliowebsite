@@ -12,7 +12,7 @@
  */
 
 import { fovToScale }      from './sky/projection.js';
-import { lst, hzToEq, eqToHz } from './sky/time.js';
+import { lst, eqToHz } from './sky/time.js';
 import { planetPositions, sunPosition, moonPosition } from './sky/planets.js';
 
 // --- Observer (Los Angeles) ---
@@ -98,7 +98,6 @@ function bvToColor(ci) {
 const canvas   = document.getElementById('sky-canvas');
 const ctx      = canvas.getContext('2d');
 const infoEl   = document.getElementById('info');
-const coordsEl = document.getElementById('cursor-coords');
 const clockTimeEl = document.getElementById('clock-time');
 const clockDateEl = document.getElementById('clock-date');
 const popupEl     = document.getElementById('object-popup');
@@ -110,7 +109,7 @@ let data = null;
 const view = { az: 180.0, alt: 45.0, fov: FOV_DEFAULT };
 const drag = { active: false, prevX: 0, prevY: 0, startX: 0, startY: 0, startTime: 0 };
 const overlays = { altAzGrid: false, eqGrid: false, ecliptic: true };
-const toggles  = { constLines: true, constLabels: true };
+const toggles  = { constellations: true }; // combined lines + labels
 
 let selectedObject = null;  // { type, px, py, ra, dec, ... }
 let hoveredConst   = null;  // constellation abbr
@@ -252,20 +251,7 @@ function projectHzPoint(alt, az, vf) {
   return { x: camX / D, y: camY / D, cosAngle: cosA };
 }
 
-function screenToRaDec(px, py, scale, vf) {
-  const x = (px - cx) / scale, y = (cy - py) / scale;
-  const rho = Math.sqrt(x * x + y * y);
-  if (rho < 1e-10) return hzToEq(view.alt, view.az, vf.lstDeg, LAT_LA);
-  const c = 2 * Math.atan(rho);
-  const cosC = Math.cos(c), sinC = Math.sin(c);
-  const camX = x * sinC / rho, camY = y * sinC / rho, camZ = cosC;
-  const xHz = camX * vf.rX + camY * vf.uX + camZ * vf.fX;
-  const yHz = camX * vf.rY + camY * vf.uY + camZ * vf.fY;
-  const zHz = camY * vf.uZ + camZ * vf.fZ;
-  const alt = Math.asin(Math.max(-1, Math.min(1, zHz))) * R2D;
-  const az = ((Math.atan2(xHz, yHz) * R2D) + 360) % 360;
-  return hzToEq(alt, az, vf.lstDeg, LAT_LA);
-}
+
 
 // ============================================================
 // Hit testing
@@ -404,7 +390,7 @@ function renderConstellationLines(scale, vf) {
 
   for (const c of data.constellations) {
     const ha = constFadeAlphas[c.abbr] || 0;
-    if (!toggles.constLines && ha <= 0) continue;
+    if (!toggles.constellations && ha <= 0) continue;
 
     if (ha > 0) {
       const a = 0.35 + (0.65 - 0.35) * ha;
@@ -788,7 +774,7 @@ function renderCardinals(scale, vf) {
 function renderLabels(scale, vf) {
   constLabelScreen = [];
 
-  if (toggles.constLabels) {
+  if (toggles.constellations) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.font = '13px sans-serif';
     for (const c of data.constellations) {
       const p = projectStar(c.label_ra, c.label_dec, vf);
@@ -965,25 +951,14 @@ function updateClock() {
 
 // --- Info panel ---
 
-function updateInfo(scale, vf) {
-  const lstH = Math.floor(vf.lstDeg / 15);
-  const lstM = Math.floor((vf.lstDeg / 15 - lstH) * 60);
+function updateInfo() {
   const magLimit = fovMagLimit(view.fov);
-
   const g = (on, key) => on ? `<span style="color:#4f4">[${key}]</span>` : `<span style="color:#555">[${key}]</span>`;
   infoEl.innerHTML =
     `<b>Star Viewer — Los Angeles</b><br>` +
-    `Stars: ${data.meta.star_count} | Mag limit: ${magLimit.toFixed(1)}<br>` +
-    `LST: ${lstH}h${String(lstM).padStart(2,'0')}m &nbsp; Az ${view.az.toFixed(1)}° Alt ${view.alt.toFixed(1)}°<br>` +
-    `FOV: ${view.fov.toFixed(3)}° &nbsp; ` +
-    g(overlays.altAzGrid, 'G') + ' ' + g(overlays.eqGrid, 'Q') + ' ' + g(overlays.ecliptic, 'E') + ' ' +
-    g(toggles.constLines, 'L') + ' ' + g(toggles.constLabels, 'K');
-
-  if (cursorPx >= 0) {
-    const coords = screenToRaDec(cursorPx, cursorPy, scale, vf);
-    coordsEl.textContent =
-      `RA ${formatRA(coords.ra)}  Dec ${formatDec(coords.dec)}`;
-  }
+    `FOV: ${view.fov.toFixed(1)}° | Mag: ${magLimit.toFixed(1)}<br>` +
+    g(overlays.altAzGrid, 'G') + ' ' + g(overlays.eqGrid, 'Q') + ' ' +
+    g(overlays.ecliptic, 'E') + ' ' + g(toggles.constellations, 'C');
 }
 
 // --- Drag ---
@@ -1076,7 +1051,7 @@ function render() {
   renderPlanets(scale, vf);
   renderMoon(scale, vf);
   renderLabels(scale, vf);
-  updateInfo(scale, vf);
+  updateInfo();
   updateClock();
   updatePopup();
 }
@@ -1093,10 +1068,8 @@ function syncOverlayButtons() {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('active', overlays[key]);
   }
-  for (const [id, key] of [['btn-lines','constLines'],['btn-labels','constLabels']]) {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle('active', toggles[key]);
-  }
+  const btnConst = document.getElementById('btn-const');
+  if (btnConst) btnConst.classList.toggle('active', toggles.constellations);
 }
 
 function handleClick(clickX, clickY) {
@@ -1208,8 +1181,7 @@ function setupInput() {
     if (e.key === 'g' || e.key === 'G') { overlays.altAzGrid = !overlays.altAzGrid; syncOverlayButtons(); }
     if (e.key === 'q' || e.key === 'Q') { overlays.eqGrid = !overlays.eqGrid; syncOverlayButtons(); }
     if (e.key === 'e' || e.key === 'E') { overlays.ecliptic = !overlays.ecliptic; syncOverlayButtons(); }
-    if (e.key === 'l' || e.key === 'L') { toggles.constLines = !toggles.constLines; syncOverlayButtons(); }
-    if (e.key === 'k' || e.key === 'K') { toggles.constLabels = !toggles.constLabels; syncOverlayButtons(); }
+    if (e.key === 'c' || e.key === 'C') { toggles.constellations = !toggles.constellations; syncOverlayButtons(); }
 
     // Arrow key panning
     const PAN_DEG = 2;
@@ -1231,7 +1203,7 @@ function setupInput() {
   // Button wiring
   for (const [id, obj, key] of [
     ['btn-altaz', overlays, 'altAzGrid'], ['btn-eq', overlays, 'eqGrid'], ['btn-ecl', overlays, 'ecliptic'],
-    ['btn-lines', toggles, 'constLines'], ['btn-labels', toggles, 'constLabels'],
+    ['btn-const', toggles, 'constellations'],
   ]) {
     const el = document.getElementById(id);
     if (el) el.addEventListener('click', () => { obj[key] = !obj[key]; syncOverlayButtons(); });
