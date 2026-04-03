@@ -1,0 +1,302 @@
+/**
+ * starfield.css — Styles for the interactive star viewer UI.
+ *
+ * Covers all viewer-specific elements: canvas, info panel, clock, time controls,
+ * search bar, overlay menu, object popup. Separate from portfolio styles (style.css).
+ */
+
+/* --- Base --- */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #050510;
+  overflow: hidden;
+  font-family: monospace;
+  color: #aaa;
+}
+
+#sky-canvas {
+  position: fixed;
+  inset: 0;
+  display: block;
+}
+
+/* --- Info panel (bottom-left) --- */
+
+#info {
+  position: fixed;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  z-index: 10;
+  background: rgba(0,0,0,0.7);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+/* --- Loading overlay --- */
+
+#loading {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #050510;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  transition: opacity 0.6s ease;
+}
+#loading.hidden { opacity: 0; pointer-events: none; }
+
+/* --- Clock panel (top-right) --- */
+
+#clock-panel {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 10;
+  background: rgba(0,0,0,0.7);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  pointer-events: none;
+  text-align: right;
+  font-family: monospace;
+  color: #aaa;
+}
+#clock-time { font-size: 1.1rem; color: #ccc; }
+
+/* --- Time controls (under clock) --- */
+
+#time-controls {
+  position: fixed;
+  top: 3.5rem;
+  right: 0.75rem;
+  z-index: 10;
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  background: rgba(0,0,0,0.7);
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+}
+#time-controls button {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #aaa;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  font: 0.7rem monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+}
+#time-controls button:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+#time-speed { color: #f80; font-size: 0.7rem; min-width: 2.5rem; text-align: center; }
+
+/* --- LIVE indicator --- */
+
+#live-indicator {
+  display: inline-block;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font: bold 0.6rem monospace;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
+  transition: all 0.3s;
+}
+#live-indicator.live {
+  color: #f44;
+  border-color: rgba(255,60,60,0.4);
+  text-shadow: 0 0 6px rgba(255,60,60,0.6);
+  animation: live-pulse 2s ease-in-out infinite;
+}
+#live-indicator.not-live {
+  color: #555;
+  border-color: rgba(255,255,255,0.1);
+}
+@keyframes live-pulse {
+  0%, 100% { text-shadow: 0 0 4px rgba(255,60,60,0.4); }
+  50% { text-shadow: 0 0 10px rgba(255,60,60,0.8); }
+}
+
+/* --- Shared button style --- */
+
+.ctrl-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #888;
+  padding: 0.3rem 0.6rem;
+  border-radius: 3px;
+  font: 0.65rem monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+}
+.ctrl-btn:hover { color: #bbb; border-color: rgba(255,255,255,0.35); }
+.ctrl-btn.active {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.5);
+  color: #ccc;
+}
+
+/* --- Overlay drop-up menu (bottom-right) --- */
+
+#menu-container {
+  position: fixed;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  z-index: 10;
+}
+#menu-toggle {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #aaa;
+  padding: 0.4rem 0.7rem;
+  border-radius: 3px;
+  font: 0.7rem monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+#menu-toggle:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+#overlay-menu {
+  display: none;
+  position: absolute;
+  bottom: 2.2rem;
+  right: 0;
+  background: rgba(5,5,16,0.92);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  padding: 0.4rem;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 120px;
+}
+#overlay-menu.visible { display: flex; }
+#overlay-menu button {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #888;
+  padding: 0.3rem 0.6rem;
+  border-radius: 3px;
+  font: 0.65rem monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+  width: 100%;
+}
+#overlay-menu button:hover { color: #bbb; border-color: rgba(255,255,255,0.3); }
+#overlay-menu button.active {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.4);
+  color: #ccc;
+}
+
+/* --- Search (top-center) --- */
+
+#search-btn {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+#search-panel {
+  position: fixed;
+  top: 2.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: 300px;
+  display: none;
+}
+#search-panel.visible { display: block; }
+#search-input {
+  width: 100%;
+  background: rgba(5,5,16,0.92);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 4px;
+  color: #ddd;
+  padding: 0.5rem 0.75rem;
+  font: 0.8rem monospace;
+  outline: none;
+}
+#search-input:focus { border-color: rgba(100,180,255,0.5); }
+#search-results {
+  background: rgba(5,5,16,0.92);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.search-result {
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #bbb;
+  transition: background 0.1s;
+}
+.search-result:hover, .search-result.selected { background: rgba(100,180,255,0.15); color: #fff; }
+.sr-type { font-size: 0.8rem; width: 1.2rem; text-align: center; }
+.sr-name { flex: 1; }
+.sr-label { color: #666; font-size: 0.6rem; text-transform: uppercase; }
+
+/* --- Object info popup (Stellarium-style, top-left) --- */
+
+#object-popup {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 15;
+  background: rgba(5,5,16,0.88);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  font-size: 0.72rem;
+  line-height: 1.7;
+  color: #aaa;
+  width: 320px;
+  display: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+#object-popup.visible { display: block; opacity: 1; }
+#object-popup.fade-in { display: block; }
+#object-popup .popup-name {
+  font-size: 0.95rem;
+  color: #fff;
+  font-weight: bold;
+  margin-bottom: 0.15rem;
+}
+#object-popup .popup-type {
+  color: #888;
+  font-size: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+#object-popup .popup-row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 1px 0;
+}
+#object-popup .popup-label { color: #777; }
+#object-popup .popup-value { color: #ccc; text-align: right; }
+#object-popup .popup-swatch {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 4px;
+}
