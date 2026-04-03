@@ -295,7 +295,7 @@ function findNearestStar(clickX, clickY, threshold) {
   const s = data.stars[si];
   return {
     type: 'star', px: starScreenBuf[bi], py: starScreenBuf[bi + 1],
-    mag: s[2], ci: s[3], ra: s[0], dec: s[1],
+    mag: s[2], ci: s[3], dist: s[4], spect: s[5], ra: s[0], dec: s[1],
   };
 }
 
@@ -828,6 +828,20 @@ function renderLabels(scale, vf) {
 
 let _popupTarget = null; // track what's shown to avoid re-rendering every frame
 
+/** Spectral class letter → display color */
+function spectColor(spect) {
+  if (!spect) return '#aaa';
+  const cls = spect.charAt(0).toUpperCase();
+  const colors = { O: '#4466ff', B: '#6688ff', A: '#88bbff', F: '#ffffff', G: '#ffee99', K: '#ff9944', M: '#ff4422' };
+  return colors[cls] || '#aaa';
+}
+
+function formatDist(dist) {
+  if (dist == null) return '\u2014';
+  if (dist < 100) return dist.toFixed(1) + ' ly';
+  return Math.round(dist).toLocaleString() + ' ly';
+}
+
 function popupRow(label, value) {
   return `<div class="popup-row"><span class="popup-label">${label}</span><span class="popup-value">${value}</span></div>`;
 }
@@ -861,11 +875,14 @@ function updatePopup() {
       const conAbbr = info ? info.con : (hipToConst && hipToConst.get(target.ra.toFixed(6)+','+target.dec.toFixed(5))) || '—';
       const conName = conAbbr !== '—' ? (constByAbbr.get(conAbbr)?.name || conAbbr) : '—';
       const rgb = bvToColor(target.ci);
+      const dist = target.dist ?? (info?.dist);
+      const spect = target.spect ?? (info?.spect);
+      const sColor = spectColor(spect);
       html = `<div class="popup-name">${name !== '—' ? name : 'Star'}</div>`
         + `<div class="popup-type">Star</div>`
         + popupRow('Magnitude', target.mag.toFixed(2))
-        + popupRow('Distance', '—')
-        + popupRow('Spectral Type', '—')
+        + popupRow('Distance', formatDist(dist))
+        + popupRow('Spectral Type', spect ? `<span style="color:${sColor}">${spect}</span>` : '—')
         + popupRow('RA/Dec', formatRA(target.ra) + ' / ' + formatDec(target.dec))
         + popupRow('Constellation', conName)
         + popupRow('Color (B-V)', `<span class="popup-swatch" style="background:rgb(${rgb})"></span>${target.ci != null ? target.ci.toFixed(2) : '—'}`);
@@ -1411,11 +1428,10 @@ function navigateToResult(result) {
   } else if (result.type === 'star') {
     const pos = data.hip[result.hipID];
     if (pos) {
-      selectedObject = { type: 'star', ra: pos[0], dec: pos[1], mag: 0, ci: null, px: cx, py: cy };
-      // Try to find actual star data
+      selectedObject = { type: 'star', ra: pos[0], dec: pos[1], mag: 0, ci: null, dist: null, spect: null, px: cx, py: cy };
       for (const s of data.stars) {
         if (Math.abs(s[0] - pos[0]) < 0.0001 && Math.abs(s[1] - pos[1]) < 0.0001) {
-          selectedObject.mag = s[2]; selectedObject.ci = s[3]; break;
+          selectedObject.mag = s[2]; selectedObject.ci = s[3]; selectedObject.dist = s[4]; selectedObject.spect = s[5]; break;
         }
       }
     }

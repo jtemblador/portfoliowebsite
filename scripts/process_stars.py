@@ -71,6 +71,17 @@ def parse_stars():
             ci = round(float(ci_raw), 2) if ci_raw else None
             proper = row.get("proper", "").strip() or None
             con = row.get("con", "").strip() or None
+
+            # Distance: parsecs → light years (1 pc = 3.26156 ly)
+            dist_raw = row.get("dist", "").strip()
+            dist_ly = round(float(dist_raw) * 3.26156, 2) if dist_raw and dist_raw != "" else None
+            if dist_ly is not None and dist_ly > 100000:
+                dist_ly = None  # filter out unrealistic distances
+
+            # Spectral type: first letter determines color class
+            spect_raw = row.get("spect", "").strip()
+            spect = spect_raw if spect_raw else None
+
             stars.append({
                 "hip": hip,
                 "ra": round(ra, 6),
@@ -79,6 +90,8 @@ def parse_stars():
                 "ci": ci,
                 "proper": proper,
                 "con": con,
+                "dist_ly": dist_ly,
+                "spect": spect,
             })
 
     print(f"  Parsed {len(stars)} stars (mag <= {MAG_LIMIT}, full sky)")
@@ -233,12 +246,15 @@ def build_output(stars, constellations):
     star_names = {}
 
     for s in stars:
-        star_array.append([s["ra"], s["dec"], s["mag"], s["ci"]])
+        star_array.append([s["ra"], s["dec"], s["mag"], s["ci"], s["dist_ly"], s["spect"]])
         if s["hip"] is not None:
             if s["hip"] in hip_set:
                 hip_lookup[s["hip"]] = [s["ra"], s["dec"]]
             if s["proper"]:
-                star_names[s["hip"]] = {"name": s["proper"], "con": s["con"]}
+                star_names[s["hip"]] = {
+                    "name": s["proper"], "con": s["con"],
+                    "dist": s["dist_ly"], "spect": s["spect"],
+                }
 
     dsos = list(DEEP_SKY_OBJECTS)
     print(f"  Named stars: {len(star_names)}")
