@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Star Viewer — Real-Time Night Sky from Los Angeles</title>
+  <link rel="stylesheet" href="css/starfield.css">
+</head>
+<body>
+  <div id="loading">loading full sky catalog...</div>
+
+  <canvas id="sky-canvas"></canvas>
+
+  <div id="info"></div>
+  <span id="cursor-coords" style="display:none"></span>
+
+  <div id="clock-panel">
+    <div id="clock-time"></div>
+    <div id="clock-date"></div>
+  </div>
+
+  <div id="time-controls">
+    <span id="live-indicator" class="live">LIVE</span>
+    <button id="btn-rewind" title="Rewind">&lt;&lt;</button>
+    <button id="btn-pause" title="Pause/Play (Space)">ll</button>
+    <button id="btn-forward" title="Fast Forward">&gt;&gt;</button>
+    <button id="btn-now" title="Return to Now">Now</button>
+    <span id="time-speed"></span>
+  </div>
+
+  <button id="search-btn" class="ctrl-btn" title="Search (/)">Search</button>
+
+  <div id="search-panel">
+    <input id="search-input" type="text" placeholder="Search stars, constellations... (/)" autocomplete="off">
+    <div id="search-results"></div>
+  </div>
+
+  <div id="menu-container">
+    <button id="menu-toggle">Overlays</button>
+    <div id="overlay-menu">
+      <button id="btn-altaz" title="Alt/Az Grid (G)">Alt/Az Grid</button>
+      <button id="btn-eq" title="Equatorial Grid (Q)">Equatorial Grid</button>
+      <button id="btn-ecl" class="active" title="Ecliptic (E)">Ecliptic</button>
+      <button id="btn-const" class="active" title="Constellations (C)">Constellations</button>
+    </div>
+  </div>
+
+  <div id="object-popup"></div>
+
+  <script type="module" src="js/starfield.js"></script>
+</body>
+</html>
