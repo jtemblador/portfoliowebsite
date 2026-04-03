@@ -862,17 +862,23 @@ const dateFmt = new Intl.DateTimeFormat('en-US', {
 });
 
 let _lastClockSec = -1;
+let _lastClockSpeed = null;
 function updateClock() {
   if (!clockTimeEl) return;
   const simTime = new Date(Date.now() + timeOffsetMs);
   const s = simTime.getSeconds();
-  if (s === _lastClockSec && timeSpeed === 1) return;
+  // Throttle: only update DOM when second changes or speed changes
+  if (s === _lastClockSec && timeSpeed === _lastClockSpeed) return;
   _lastClockSec = s;
+  _lastClockSpeed = timeSpeed;
   clockTimeEl.textContent = clockFmt.format(simTime);
   clockDateEl.textContent = dateFmt.format(simTime);
-  // Show speed indicator
   const speedEl = document.getElementById('time-speed');
-  if (speedEl) speedEl.textContent = timeSpeed === 1 ? '' : `${timeSpeed}×`;
+  if (speedEl) {
+    if (timeSpeed === 0) speedEl.textContent = 'Paused';
+    else if (timeSpeed === 1) speedEl.textContent = '';
+    else speedEl.textContent = `${timeSpeed}\u00d7`;
+  }
 }
 
 // --- Info panel ---
@@ -1200,14 +1206,21 @@ function setupInput() {
 // --- Time Controls ---
 
 function togglePause() {
-  if (timeSpeed === 0) { timeSpeed = _prevTimeSpeed || 1; }
-  else { _prevTimeSpeed = timeSpeed; timeSpeed = 0; }
+  if (timeSpeed === 0) {
+    timeSpeed = _prevTimeSpeed || 1;
+    _lastRealTime = Date.now(); // prevent stale elapsed accumulation on resume
+  } else {
+    _prevTimeSpeed = timeSpeed;
+    timeSpeed = 0;
+  }
 }
 
 function changeSpeed(dir) {
+  const wasPaused = timeSpeed === 0;
   const idx = SPEED_STEPS.indexOf(timeSpeed);
   const next = idx + dir;
   if (next >= 0 && next < SPEED_STEPS.length) timeSpeed = SPEED_STEPS[next];
+  if (wasPaused && timeSpeed !== 0) _lastRealTime = Date.now(); // prevent drift on resume via speed change
 }
 
 function resetTime() {
@@ -1336,12 +1349,21 @@ function navigateToResult(result) {
     }
     clickedConst = null;
   } else if (result.type === 'planet') {
-    selectedObject = { type: 'planet', name: result.name, ra: result.ra, dec: result.dec, px: cx, py: cy };
+    // Use live cached position (planets move, search index may be stale)
+    const live = _cachedPlanets?.find(p => p.name === result.name);
+    const ra = live?.ra ?? result.ra, dec = live?.dec ?? result.dec;
+    selectedObject = { type: 'planet', name: result.name, ra, dec, px: cx, py: cy };
+    // Re-compute pan target with live position
+    const hzLive = eqToHz(ra, dec, lstDeg, LAT_LA);
+    viewTarget = { az: hzLive.az, alt: Math.max(ALT_MIN, Math.min(ALT_MAX, hzLive.alt)) };
     clickedConst = null;
   } else if (result.type === 'moon') {
-    selectedObject = { type: 'moon', name: 'Moon', ra: result.ra, dec: result.dec,
+    const ra = _cachedMoon?.ra ?? result.ra, dec = _cachedMoon?.dec ?? result.dec;
+    selectedObject = { type: 'moon', name: 'Moon', ra, dec,
                        illumination: _cachedMoon ? (1 + Math.cos(_cachedMoon.elongation * D2R)) / 2 : 0.5,
                        elongation: _cachedMoon?.elongation || 0, px: cx, py: cy };
+    const hzLive = eqToHz(ra, dec, lstDeg, LAT_LA);
+    viewTarget = { az: hzLive.az, alt: Math.max(ALT_MIN, Math.min(ALT_MAX, hzLive.alt)) };
     clickedConst = null;
   }
 }
