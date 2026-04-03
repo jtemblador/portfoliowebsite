@@ -53,6 +53,9 @@ const CARDINALS = [
 ];
 
 // --- Accessibility ---
+// Light mode: canvas is always dark (astronomy viewer). HTML overlays use inline
+// dark styles in starfield_test.html. Portfolio integration (Section 2) will hide
+// the canvas entirely when light mode is active.
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -868,6 +871,10 @@ function updatePopup() {
         + `<div class="popup-type">Constellation (${target.abbr})</div>`
         + popupRow('Stars', String(starCount))
         + popupRow('Center RA/Dec', con ? formatRA(con.label_ra) + ' / ' + formatDec(con.label_dec) : '—');
+    } else if (target.type === 'dso') {
+      html = `<div class="popup-name">${target.name}</div>`
+        + `<div class="popup-type">Deep Sky Object</div>`
+        + popupRow('RA/Dec', formatRA(target.ra) + ' / ' + formatDec(target.dec));
     }
 
     popupEl.innerHTML = html;
@@ -1252,9 +1259,10 @@ function togglePause() {
 function changeSpeed(dir) {
   const wasPaused = timeSpeed === 0;
   const idx = SPEED_STEPS.indexOf(timeSpeed);
+  if (idx === -1) return; // safety: current speed not in steps
   const next = idx + dir;
   if (next >= 0 && next < SPEED_STEPS.length) timeSpeed = SPEED_STEPS[next];
-  if (wasPaused && timeSpeed !== 0) _lastRealTime = Date.now(); // prevent drift on resume via speed change
+  if (wasPaused && timeSpeed !== 0) _lastRealTime = Date.now();
 }
 
 function resetTime() {
@@ -1293,6 +1301,10 @@ function buildSearchIndex() {
     for (const p of _cachedPlanets) searchIndex.push({ name: p.name, type: 'planet', ra: p.ra, dec: p.dec });
   }
   if (_cachedMoon) searchIndex.push({ name: 'Moon', type: 'moon', ra: _cachedMoon.ra, dec: _cachedMoon.dec });
+  // DSOs
+  for (const d of data.dsos) {
+    searchIndex.push({ name: d.name, type: 'dso', ra: d.ra, dec: d.dec });
+  }
 }
 
 let _searchMatches = [];   // current search results for arrow nav
@@ -1398,6 +1410,9 @@ function navigateToResult(result) {
                        elongation: _cachedMoon?.elongation || 0, px: cx, py: cy };
     const hzLive = eqToHz(ra, dec, lstDeg, LAT_LA);
     viewTarget = { az: hzLive.az, alt: Math.max(ALT_MIN, Math.min(ALT_MAX, hzLive.alt)) };
+    clickedConst = null;
+  } else if (result.type === 'dso') {
+    selectedObject = { type: 'dso', name: result.name, ra: result.ra, dec: result.dec, px: cx, py: cy };
     clickedConst = null;
   }
 }
