@@ -129,6 +129,8 @@ let constLabelScreen = [];
 let starNameLookup = null;
 // HIP ID → constellation abbr (for hover-over-star → highlight constellation)
 let hipToConst = null;
+// Constellation abbr → constellation object (O(1) lookup)
+let constByAbbr = null;
 
 // --- Canvas sizing ---
 
@@ -402,7 +404,7 @@ function renderConstellationHighlight(scale, vf) {
   for (const abbr in constFadeAlphas) {
     const ha = constFadeAlphas[abbr];
     if (ha <= 0.01) continue;
-    const con = data.constellations.find(c => c.abbr === abbr);
+    const con = constByAbbr.get(abbr);
     if (!con) continue;
 
     const seen = new Set();
@@ -430,8 +432,7 @@ function renderSelection(scale, vf) {
   const p = projectStar(selectedObject.ra, selectedObject.dec, vf);
   if (!p) return;
   const px = cx + p.x * scale, py = cy - p.y * scale;
-  const t = performance.now() * 0.003;
-  const pulse = 0.7 + 0.3 * Math.sin(t);
+  const pulse = reducedMotion ? 1.0 : 0.7 + 0.3 * Math.sin(performance.now() * 0.003);
 
   ctx.strokeStyle = `rgba(255,220,100,${pulse.toFixed(2)})`;
   ctx.lineWidth = 2;
@@ -527,9 +528,8 @@ function renderMilkyWay(scale, vf) {
 
 // --- Twilight glow ---
 
-function renderTwilight(scale, vf, jd, lstDeg) {
-  const sun = sunPosition(jd);
-  const sunHz = eqToHz(sun.ra, sun.dec, lstDeg, LAT_LA);
+function renderTwilight(scale, vf, lstDeg) {
+  const sunHz = eqToHz(_cachedSun.ra, _cachedSun.dec, lstDeg, LAT_LA);
 
   if (sunHz.alt > 0 || sunHz.alt < -18) return;
 
@@ -554,8 +554,8 @@ function renderTwilight(scale, vf, jd, lstDeg) {
 
 // --- Moon ---
 
-function renderMoon(scale, vf, jd) {
-  const moon = moonPosition(jd);
+function renderMoon(scale, vf) {
+  const moon = _cachedMoon;
   const p = projectStar(moon.ra, moon.dec, vf);
   if (!p) { moonScreenPos = null; return; }
 
@@ -568,7 +568,7 @@ function renderMoon(scale, vf, jd) {
   // Illuminated fraction and phase side
   const k = (1 + Math.cos(moon.elongation * D2R)) / 2;
   // Determine waxing vs waning: moon east of sun = waxing (shadow on right)
-  const sunPos = sunPosition(jd);
+  const sunPos = _cachedSun;
   const eastOfSun = ((sunPos.ra - moon.ra) * 15 + 360) % 360 > 180;
   const shadowSign = eastOfSun ? 1 : -1;
 
@@ -669,9 +669,9 @@ function renderHorizon(scale, vf) {
   ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
 }
 
-function renderPlanets(scale, vf, jd) {
+function renderPlanets(scale, vf) {
   const cullCos = Math.cos((view.fov / 2 + 5) * D2R);
-  const planets = planetPositions(jd);
+  const planets = _cachedPlanets;
   planetScreenBuf = [];
 
   for (const planet of planets) {
@@ -791,7 +791,7 @@ function updatePopup() {
       const info = lookupStarName(target.ra, target.dec);
       const name = info ? info.name : '—';
       const conAbbr = info ? info.con : (hipToConst && hipToConst.get(target.ra.toFixed(6)+','+target.dec.toFixed(5))) || '—';
-      const conName = conAbbr !== '—' ? (data.constellations.find(c => c.abbr === conAbbr)?.name || conAbbr) : '—';
+      const conName = conAbbr !== '—' ? (constByAbbr.get(conAbbr)?.name || conAbbr) : '—';
       const rgb = bvToColor(target.ci);
       html = `<div class="popup-name">${name !== '—' ? name : 'Star'}</div>`
         + `<div class="popup-type">Star</div>`
@@ -821,7 +821,7 @@ function updatePopup() {
         + popupRow('RA/Dec', formatRA(target.ra) + ' / ' + formatDec(target.dec));
 
     } else if (target.type === 'constellation') {
-      const con = data.constellations.find(c => c.abbr === target.abbr);
+      const con = constByAbbr.get(target.abbr);
       const starCount = con ? new Set(con.lines.flat()).size : 0;
       html = `<div class="popup-name">${con ? con.name : target.abbr}</div>`
         + `<div class="popup-type">Constellation (${target.abbr})</div>`
@@ -888,11 +888,28 @@ function applyDragRotation(alt, az, dx, dy, degPerPx) {
   return { alt: newAlt, az: newAz };
 }
 
+// --- Ephemeris cache (planets/sun/moon recomputed once per minute, not per frame) ---
+
+let _cachedPlanets = null;
+let _cachedSun = null;
+let _cachedMoon = null;
+let _lastEphemJD = 0;
+
+function updateEphemeris(jd) {
+  if (jd - _lastEphemJD > 1 / 1440) { // 1 minute in Julian days
+    _cachedPlanets = planetPositions(jd);
+    _cachedSun = sunPosition(jd);
+    _cachedMoon = moonPosition(jd);
+    _lastEphemJD = jd;
+  }
+}
+
 // --- Main render ---
 
 function render() {
   const jd = julianDate();
   const lstDeg = lst(jd, LON_LA);
+  updateEphemeris(jd);
   const vf = buildViewFrame(view.alt, view.az, lstDeg);
   const scale = fovToScale(view.fov, Math.min(cx, cy));
 
@@ -916,7 +933,7 @@ function render() {
   ctx.fillRect(0, 0, W, H);
 
   renderMilkyWay(scale, vf);
-  renderTwilight(scale, vf, jd, lstDeg);
+  renderTwilight(scale, vf, lstDeg);
   if (overlays.altAzGrid) renderAltAzGrid(scale, vf);
   if (overlays.eqGrid) renderEqGrid(scale, vf);
   if (overlays.ecliptic) renderEcliptic(scale, vf);
@@ -927,8 +944,8 @@ function render() {
   renderSelection(scale, vf);
   renderHorizon(scale, vf);
   renderCardinals(scale, vf);
-  renderPlanets(scale, vf, jd);
-  renderMoon(scale, vf, jd);
+  renderPlanets(scale, vf);
+  renderMoon(scale, vf);
   renderLabels(scale, vf);
   updateInfo(scale, vf);
   updateClock();
@@ -1172,6 +1189,7 @@ async function init() {
 
   milkyWayPoints = buildMilkyWayPoints(data.milky_way);
   buildStarNameLookup();
+  constByAbbr = new Map(data.constellations.map(c => [c.abbr, c]));
 
   setupInput();
   syncOverlayButtons();
