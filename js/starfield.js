@@ -12,7 +12,7 @@
  */
 
 import { fovToScale }      from './sky/projection.js';
-import { lst, eqToHz } from './sky/time.js';
+import { lst, eqToHz }  from './sky/time.js';
 import { planetPositions, sunPosition, moonPosition } from './sky/planets.js';
 
 // --- Observer (Los Angeles) ---
@@ -850,7 +850,9 @@ function updatePopup() {
   }
 
   // Build content only when target changes
-  const targetKey = target.type + ':' + (target.name || target.abbr || target.ra);
+  // For planets/Moon, include timestamp so popup refreshes once per second with live data
+  const timeSuffix = (target.type === 'planet' || target.type === 'moon') ? ':' + Math.floor(Date.now() / 1000) : '';
+  const targetKey = target.type + ':' + (target.name || target.abbr || target.ra) + timeSuffix;
   if (_popupTarget !== targetKey) {
     _popupTarget = targetKey;
     let html = '';
@@ -874,14 +876,25 @@ function updatePopup() {
         + popupRow('Color (B-V)', `<span class="popup-swatch" style="background:rgb(${rgb})"></span>${target.ci != null ? target.ci.toFixed(2) : '—'}`);
 
     } else if (target.type === 'planet') {
+      // Get live data from cached ephemeris
+      const live = _cachedPlanets?.find(p => p.name === target.name);
+      const ra = live?.ra ?? target.ra, dec = live?.dec ?? target.dec;
+      const hz = eqToHz(ra, dec, lst((Date.now() + timeOffsetMs) / 86400000 + 2440587.5, LON_LA), LAT_LA);
+      const phasePct = live ? Math.round(live.phase * 100) : '—';
       html = `<div class="popup-name">${target.name}</div>`
         + `<div class="popup-type">Planet</div>`
-        + popupRow('RA/Dec', formatRA(target.ra) + ' / ' + formatDec(target.dec))
-        + popupRow('Distance', '—')
-        + popupRow('Magnitude', '—');
+        + popupRow('RA/Dec', formatRA(ra) + ' / ' + formatDec(dec))
+        + popupRow('Az/Alt', `${hz.az.toFixed(1)}\u00b0 / ${hz.alt.toFixed(1)}\u00b0`)
+        + popupRow('Distance', live ? live.distAU.toFixed(3) + ' AU' : '—')
+        + popupRow('Magnitude', live ? live.magnitude.toFixed(2) : '—')
+        + popupRow('Phase', phasePct + '%');
 
     } else if (target.type === 'moon') {
-      const pct = Math.round(target.illumination * 100);
+      const moon = _cachedMoon;
+      const ra = moon?.ra ?? target.ra, dec = moon?.dec ?? target.dec;
+      const hz = eqToHz(ra, dec, lst((Date.now() + timeOffsetMs) / 86400000 + 2440587.5, LON_LA), LAT_LA);
+      const k = moon ? (1 + Math.cos(moon.elongation * D2R)) / 2 : 0.5;
+      const pct = Math.round(k * 100);
       let phaseName = 'New Moon';
       if (pct > 2 && pct < 48) phaseName = 'Waxing Crescent';
       if (pct >= 48 && pct <= 52) phaseName = 'Quarter';
@@ -889,7 +902,9 @@ function updatePopup() {
       if (pct >= 98) phaseName = 'Full Moon';
       html = `<div class="popup-name">Moon</div>`
         + `<div class="popup-type">${phaseName} (${pct}% illuminated)</div>`
-        + popupRow('RA/Dec', formatRA(target.ra) + ' / ' + formatDec(target.dec));
+        + popupRow('RA/Dec', formatRA(ra) + ' / ' + formatDec(dec))
+        + popupRow('Az/Alt', `${hz.az.toFixed(1)}\u00b0 / ${hz.alt.toFixed(1)}\u00b0`)
+        + popupRow('Distance', moon ? moon.distAU.toFixed(5) + ' AU' : '—');
 
     } else if (target.type === 'constellation') {
       const con = constByAbbr.get(target.abbr);
