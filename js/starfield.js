@@ -327,7 +327,7 @@ function lookupStarName(ra, dec) {
 // ============================================================
 
 function renderStars(scale, vf) {
-  const cullCos = Math.cos((view.fov / 2 + 10) * D2R);
+  const cullCos = Math.cos((view.fov / 2 + 25) * D2R); // generous margin so stars at edges aren't clipped
   const magLimit = fovMagLimit(view.fov);
   const t = performance.now() * 0.001;
 
@@ -463,7 +463,7 @@ function renderSelection(scale, vf) {
 }
 
 function renderDSOs(scale, vf) {
-  const cullCos = Math.cos((view.fov / 2 + 5) * D2R);
+  const cullCos = Math.cos((view.fov / 2 + 25) * D2R);
   dsoScreenBuf = [];
 
   for (let di = 0; di < data.dsos.length; di++) {
@@ -724,7 +724,7 @@ function renderHorizon(scale, vf) {
 }
 
 function renderPlanets(scale, vf) {
-  const cullCos = Math.cos((view.fov / 2 + 5) * D2R);
+  const cullCos = Math.cos((view.fov / 2 + 25) * D2R);
   const planets = _cachedPlanets;
   planetScreenBuf = [];
 
