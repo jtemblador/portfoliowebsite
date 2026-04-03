@@ -7,7 +7,7 @@
 .playwright-mcp/
 prompt.md
 
-# Star viewer test harness (removed before ship)
+# Old test harness (replaced by starfield.html)
 starfield_test.html
 STARFIELD_ROADMAP.md
 
