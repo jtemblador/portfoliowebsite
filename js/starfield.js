@@ -12,7 +12,7 @@
  */
 
 import { fovToScale }      from './sky/projection.js';
-import { julianDate, lst, hzToEq, eqToHz } from './sky/time.js';
+import { lst, hzToEq, eqToHz } from './sky/time.js';
 import { planetPositions, sunPosition, moonPosition } from './sky/planets.js';
 
 // --- Observer (Los Angeles) ---
@@ -114,6 +114,20 @@ let hoveredConst   = null;  // constellation abbr
 let clickedConst   = null;  // persisted constellation highlight
 let constFadeAlphas = {};    // { abbr: alpha } per-constellation fade values
 let _lastFrameTime = performance.now();
+
+// Time controls
+let timeOffsetMs = 0;       // offset from real time (ms)
+let timeSpeed = 1;          // 0=paused, 1=real, 10/100/1000=fast, negative=rewind
+let _lastRealTime = Date.now();
+let _prevTimeSpeed = 1;     // for pause/resume toggle
+const SPEED_STEPS = [-1000, -100, -10, -1, 0, 1, 10, 100, 1000];
+
+// Animated pan
+let viewTarget = null;      // { az, alt } or null — lerp target
+
+// Search
+let searchIndex = [];       // [{ name, type, ra, dec, abbr? }]
+let searchOpen = false;
 
 let cursorPx = -1, cursorPy = -1;
 let W = 0, H = 0, cx = 0, cy = 0;
@@ -850,12 +864,15 @@ const dateFmt = new Intl.DateTimeFormat('en-US', {
 let _lastClockSec = -1;
 function updateClock() {
   if (!clockTimeEl) return;
-  const now = new Date();
-  const s = now.getSeconds();
-  if (s === _lastClockSec) return;
+  const simTime = new Date(Date.now() + timeOffsetMs);
+  const s = simTime.getSeconds();
+  if (s === _lastClockSec && timeSpeed === 1) return;
   _lastClockSec = s;
-  clockTimeEl.textContent = clockFmt.format(now);
-  clockDateEl.textContent = dateFmt.format(now);
+  clockTimeEl.textContent = clockFmt.format(simTime);
+  clockDateEl.textContent = dateFmt.format(simTime);
+  // Show speed indicator
+  const speedEl = document.getElementById('time-speed');
+  if (speedEl) speedEl.textContent = timeSpeed === 1 ? '' : `${timeSpeed}×`;
 }
 
 // --- Info panel ---
@@ -907,16 +924,37 @@ function updateEphemeris(jd) {
 // --- Main render ---
 
 function render() {
-  const jd = julianDate();
+  // Time with offset and speed
+  const realNow = Date.now();
+  const elapsed = realNow - _lastRealTime;
+  _lastRealTime = realNow;
+  timeOffsetMs += elapsed * (timeSpeed - 1);
+  const jd = (realNow + timeOffsetMs) / 86400000 + 2440587.5;
+
   const lstDeg = lst(jd, LON_LA);
   updateEphemeris(jd);
-  const vf = buildViewFrame(view.alt, view.az, lstDeg);
-  const scale = fovToScale(view.fov, Math.min(cx, cy));
 
-  // Animate per-constellation highlight fade (0→1 in ~0.3s, frame-rate independent)
+  // Animate per-frame timing
   const now = performance.now();
   const dt = Math.min((now - _lastFrameTime) / 1000, 0.1);
   _lastFrameTime = now;
+
+  // Animated pan toward target
+  if (viewTarget) {
+    const speed = 5;
+    const dAz = ((viewTarget.az - view.az + 540) % 360) - 180;
+    const dAlt = viewTarget.alt - view.alt;
+    if (Math.abs(dAz) < 0.1 && Math.abs(dAlt) < 0.1) {
+      view.az = viewTarget.az; view.alt = viewTarget.alt;
+      viewTarget = null;
+    } else {
+      view.az = ((view.az + dAz * speed * dt) % 360 + 360) % 360;
+      view.alt = Math.max(ALT_MIN, Math.min(ALT_MAX, view.alt + dAlt * speed * dt));
+    }
+  }
+
+  const vf = buildViewFrame(view.alt, view.az, lstDeg);
+  const scale = fovToScale(view.fov, Math.min(cx, cy));
   const fadeSpeed = dt / 0.3;
   const activeAbbr = hoveredConst || clickedConst;
   // Fade in active constellation, fade out all others
@@ -1015,6 +1053,7 @@ function setupInput() {
     drag.prevX = e.clientX; drag.prevY = e.clientY;
     drag.startX = e.clientX; drag.startY = e.clientY;
     drag.startTime = performance.now();
+    viewTarget = null; // cancel animated pan on drag
     canvas.style.cursor = 'grabbing';
   });
 
@@ -1069,12 +1108,31 @@ function setupInput() {
 
   // Keyboard shortcuts
   window.addEventListener('keydown', (e) => {
+    // Search bar intercepts keys when open
+    if (searchOpen && e.key !== 'Escape') return;
+
+    // Grid/overlay toggles
     if (e.key === 'g' || e.key === 'G') { overlays.altAzGrid = !overlays.altAzGrid; syncOverlayButtons(); }
     if (e.key === 'q' || e.key === 'Q') { overlays.eqGrid = !overlays.eqGrid; syncOverlayButtons(); }
     if (e.key === 'e' || e.key === 'E') { overlays.ecliptic = !overlays.ecliptic; syncOverlayButtons(); }
     if (e.key === 'l' || e.key === 'L') { toggles.constLines = !toggles.constLines; syncOverlayButtons(); }
     if (e.key === 'k' || e.key === 'K') { toggles.constLabels = !toggles.constLabels; syncOverlayButtons(); }
-    if (e.key === 'Escape') { selectedObject = null; clickedConst = null; }
+
+    // Arrow key panning
+    const PAN_DEG = 2;
+    if (e.key === 'ArrowUp')    { viewTarget = null; const nv = applyDragRotation(view.alt, view.az, 0, -1, PAN_DEG); view.alt = nv.alt; e.preventDefault(); }
+    if (e.key === 'ArrowDown')  { viewTarget = null; const nv = applyDragRotation(view.alt, view.az, 0, 1, PAN_DEG); view.alt = nv.alt; e.preventDefault(); }
+    if (e.key === 'ArrowLeft')  { viewTarget = null; const nv = applyDragRotation(view.alt, view.az, -1, 0, PAN_DEG); view.az = nv.az; e.preventDefault(); }
+    if (e.key === 'ArrowRight') { viewTarget = null; const nv = applyDragRotation(view.alt, view.az, 1, 0, PAN_DEG); view.az = nv.az; e.preventDefault(); }
+    if (e.key === '+' || e.key === '=') view.fov = Math.max(FOV_MIN, view.fov * 0.95);
+    if (e.key === '-') view.fov = Math.min(FOV_MAX, view.fov * 1.05);
+
+    // Search
+    if (e.key === '/') { e.preventDefault(); openSearch(); }
+    if (e.key === 'Escape') { if (searchOpen) closeSearch(); else { selectedObject = null; clickedConst = null; } }
+
+    // Time controls
+    if (e.key === ' ') { e.preventDefault(); togglePause(); }
   });
 
   // Button wiring
@@ -1139,6 +1197,158 @@ function setupInput() {
   window.addEventListener('resize', resize);
 }
 
+// --- Time Controls ---
+
+function togglePause() {
+  if (timeSpeed === 0) { timeSpeed = _prevTimeSpeed || 1; }
+  else { _prevTimeSpeed = timeSpeed; timeSpeed = 0; }
+}
+
+function changeSpeed(dir) {
+  const idx = SPEED_STEPS.indexOf(timeSpeed);
+  const next = idx + dir;
+  if (next >= 0 && next < SPEED_STEPS.length) timeSpeed = SPEED_STEPS[next];
+}
+
+function resetTime() {
+  timeOffsetMs = 0; timeSpeed = 1; _lastRealTime = Date.now();
+}
+
+function setupTimeControls() {
+  const btnRew = document.getElementById('btn-rewind');
+  const btnPause = document.getElementById('btn-pause');
+  const btnFwd = document.getElementById('btn-forward');
+  const btnNow = document.getElementById('btn-now');
+  if (btnRew) btnRew.addEventListener('click', () => changeSpeed(-1));
+  if (btnPause) btnPause.addEventListener('click', togglePause);
+  if (btnFwd) btnFwd.addEventListener('click', () => changeSpeed(1));
+  if (btnNow) btnNow.addEventListener('click', resetTime);
+}
+
+// --- Search ---
+
+function buildSearchIndex() {
+  searchIndex = [];
+  // Constellations
+  for (const c of data.constellations) {
+    searchIndex.push({ name: c.name, type: 'constellation', ra: c.label_ra, dec: c.label_dec, abbr: c.abbr });
+  }
+  // Named stars
+  if (data.star_names) {
+    for (const hipID of Object.keys(data.star_names)) {
+      const info = data.star_names[hipID];
+      const pos = data.hip[hipID];
+      if (pos) searchIndex.push({ name: info.name, type: 'star', ra: pos[0], dec: pos[1], hipID });
+    }
+  }
+  // Planets + Moon (use cached positions)
+  if (_cachedPlanets) {
+    for (const p of _cachedPlanets) searchIndex.push({ name: p.name, type: 'planet', ra: p.ra, dec: p.dec });
+  }
+  if (_cachedMoon) searchIndex.push({ name: 'Moon', type: 'moon', ra: _cachedMoon.ra, dec: _cachedMoon.dec });
+}
+
+function openSearch() {
+  const panel = document.getElementById('search-panel');
+  const input = document.getElementById('search-input');
+  if (!panel || !input) return;
+  searchOpen = true;
+  panel.classList.add('visible');
+  input.value = '';
+  input.focus();
+  updateSearchResults('');
+}
+
+function closeSearch() {
+  const panel = document.getElementById('search-panel');
+  if (!panel) return;
+  searchOpen = false;
+  panel.classList.remove('visible');
+}
+
+function updateSearchResults(query) {
+  const resultsEl = document.getElementById('search-results');
+  if (!resultsEl) return;
+  if (!query) { resultsEl.innerHTML = ''; return; }
+
+  const q = query.toLowerCase();
+  const matches = searchIndex
+    .filter(e => e.name.toLowerCase().includes(q))
+    .sort((a, b) => {
+      // Prefer starts-with over contains
+      const aStart = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+      const bStart = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+      return aStart - bStart;
+    })
+    .slice(0, 8);
+
+  resultsEl.innerHTML = matches.map((m, i) =>
+    `<div class="search-result" data-idx="${i}">` +
+    `<span class="sr-type">${m.type === 'constellation' ? '\u2b50' : m.type === 'planet' ? '\ud83c\udf1f' : m.type === 'moon' ? '\ud83c\udf19' : '\u2022'}</span>` +
+    `<span class="sr-name">${m.name}</span>` +
+    `<span class="sr-label">${m.type}</span>` +
+    `</div>`
+  ).join('');
+
+  // Wire click handlers
+  resultsEl.querySelectorAll('.search-result').forEach((el, i) => {
+    el.addEventListener('click', () => navigateToResult(matches[i]));
+  });
+}
+
+function navigateToResult(result) {
+  closeSearch();
+
+  // Convert RA/Dec to current alt/az for pan target
+  const realNow = Date.now();
+  const jd = (realNow + timeOffsetMs) / 86400000 + 2440587.5;
+  const lstDeg = lst(jd, LON_LA);
+  const hz = eqToHz(result.ra, result.dec, lstDeg, LAT_LA);
+
+  // Clamp target alt to visible range
+  const targetAlt = Math.max(ALT_MIN, Math.min(ALT_MAX, hz.alt));
+  viewTarget = { az: hz.az, alt: targetAlt };
+
+  // Select the object after navigation
+  if (result.type === 'constellation') {
+    clickedConst = result.abbr;
+    selectedObject = null;
+  } else if (result.type === 'star') {
+    const pos = data.hip[result.hipID];
+    if (pos) {
+      selectedObject = { type: 'star', ra: pos[0], dec: pos[1], mag: 0, ci: null, px: cx, py: cy };
+      // Try to find actual star data
+      for (const s of data.stars) {
+        if (Math.abs(s[0] - pos[0]) < 0.0001 && Math.abs(s[1] - pos[1]) < 0.0001) {
+          selectedObject.mag = s[2]; selectedObject.ci = s[3]; break;
+        }
+      }
+    }
+    clickedConst = null;
+  } else if (result.type === 'planet') {
+    selectedObject = { type: 'planet', name: result.name, ra: result.ra, dec: result.dec, px: cx, py: cy };
+    clickedConst = null;
+  } else if (result.type === 'moon') {
+    selectedObject = { type: 'moon', name: 'Moon', ra: result.ra, dec: result.dec,
+                       illumination: _cachedMoon ? (1 + Math.cos(_cachedMoon.elongation * D2R)) / 2 : 0.5,
+                       elongation: _cachedMoon?.elongation || 0, px: cx, py: cy };
+    clickedConst = null;
+  }
+}
+
+function setupSearch() {
+  const input = document.getElementById('search-input');
+  if (!input) return;
+  input.addEventListener('input', () => updateSearchResults(input.value));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { closeSearch(); e.stopPropagation(); }
+    if (e.key === 'Enter') {
+      const first = document.querySelector('.search-result');
+      if (first) first.click();
+    }
+  });
+}
+
 // --- Init ---
 
 function buildStarNameLookup() {
@@ -1190,6 +1400,13 @@ async function init() {
   milkyWayPoints = buildMilkyWayPoints(data.milky_way);
   buildStarNameLookup();
   constByAbbr = new Map(data.constellations.map(c => [c.abbr, c]));
+
+  // Initialize ephemeris so search index has planet positions
+  const initJd = (Date.now() + timeOffsetMs) / 86400000 + 2440587.5;
+  updateEphemeris(initJd);
+  buildSearchIndex();
+  setupTimeControls();
+  setupSearch();
 
   setupInput();
   syncOverlayButtons();
