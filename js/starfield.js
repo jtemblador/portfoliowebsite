@@ -109,7 +109,7 @@ let data = null;
 
 const view = { az: 180.0, alt: 45.0, fov: FOV_DEFAULT };
 const drag = { active: false, prevX: 0, prevY: 0, startX: 0, startY: 0, startTime: 0 };
-const overlays = { altAzGrid: false, eqGrid: false, ecliptic: false };
+const overlays = { altAzGrid: false, eqGrid: false, ecliptic: true };
 const toggles  = { constLines: true, constLabels: true };
 
 let selectedObject = null;  // { type, px, py, ra, dec, ... }
@@ -970,11 +970,14 @@ function updateInfo(scale, vf) {
   const lstM = Math.floor((vf.lstDeg / 15 - lstH) * 60);
   const magLimit = fovMagLimit(view.fov);
 
+  const g = (on, key) => on ? `<span style="color:#4f4">[${key}]</span>` : `<span style="color:#555">[${key}]</span>`;
   infoEl.innerHTML =
     `<b>Star Viewer — Los Angeles</b><br>` +
     `Stars: ${data.meta.star_count} | Mag limit: ${magLimit.toFixed(1)}<br>` +
     `LST: ${lstH}h${String(lstM).padStart(2,'0')}m &nbsp; Az ${view.az.toFixed(1)}° Alt ${view.alt.toFixed(1)}°<br>` +
-    `FOV: ${view.fov.toFixed(3)}° &nbsp; [G] [Q] [E] [L] [K]`;
+    `FOV: ${view.fov.toFixed(3)}° &nbsp; ` +
+    g(overlays.altAzGrid, 'G') + ' ' + g(overlays.eqGrid, 'Q') + ' ' + g(overlays.ecliptic, 'E') + ' ' +
+    g(toggles.constLines, 'L') + ' ' + g(toggles.constLabels, 'K');
 
   if (cursorPx >= 0) {
     const coords = screenToRaDec(cursorPx, cursorPy, scale, vf);
@@ -1485,9 +1488,20 @@ function setupSearch() {
     }
   });
 
-  // Search button
+  // Search button (toggle)
   const searchBtn = document.getElementById('search-btn');
-  if (searchBtn) searchBtn.addEventListener('click', openSearch);
+  if (searchBtn) searchBtn.addEventListener('click', () => {
+    if (searchOpen) closeSearch(); else openSearch();
+  });
+
+  // Click outside search closes it
+  const searchPanel = document.getElementById('search-panel');
+  document.addEventListener('click', (e) => {
+    if (searchOpen && searchBtn && searchPanel &&
+        !searchBtn.contains(e.target) && !searchPanel.contains(e.target)) {
+      closeSearch();
+    }
+  });
 
   // Overlay menu toggle
   const menuToggle = document.getElementById('menu-toggle');
