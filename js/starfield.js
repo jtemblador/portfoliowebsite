@@ -193,17 +193,38 @@ function fovMagLimit(fovDeg) {
 
 function formatRA(ra) {
   const h = Math.floor(ra);
-  const m = Math.floor((ra - h) * 60);
-  const s = Math.floor(((ra - h) * 60 - m) * 60);
-  return `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+  const mFull = (ra - h) * 60;
+  const m = Math.floor(mFull);
+  const s = ((mFull - m) * 60).toFixed(1);
+  return `${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m ${s.padStart(4,'0')}s`;
 }
 
 function formatDec(dec) {
   const sign = dec >= 0 ? '+' : '-';
   const d = Math.abs(dec);
   const deg = Math.floor(d);
-  const min = Math.floor((d - deg) * 60);
-  return `${sign}${deg}° ${String(min).padStart(2,'0')}'`;
+  const mFull = (d - deg) * 60;
+  const m = Math.floor(mFull);
+  const s = ((mFull - m) * 60).toFixed(1);
+  return `${sign}${String(deg).padStart(2,'0')}\u00b0 ${String(m).padStart(2,'0')}' ${s.padStart(4,'0')}"`;
+}
+
+function formatAz(az) {
+  const deg = Math.floor(az);
+  const mFull = (az - deg) * 60;
+  const m = Math.floor(mFull);
+  const s = ((mFull - m) * 60).toFixed(1);
+  return `${String(deg).padStart(3,'0')}\u00b0 ${String(m).padStart(2,'0')}' ${s.padStart(4,'0')}"`;
+}
+
+function formatAlt(alt) {
+  const sign = alt >= 0 ? '+' : '-';
+  const d = Math.abs(alt);
+  const deg = Math.floor(d);
+  const mFull = (d - deg) * 60;
+  const m = Math.floor(mFull);
+  const s = ((mFull - m) * 60).toFixed(1);
+  return `${sign}${String(deg).padStart(2,'0')}\u00b0 ${String(m).padStart(2,'0')}' ${s.padStart(4,'0')}"`;
 }
 
 // ============================================================
@@ -578,6 +599,44 @@ function renderTwilight(scale, vf, lstDeg) {
   ctx.beginPath(); ctx.arc(px, py, radius, 0, Math.PI*2); ctx.fill();
 }
 
+// --- Sun ---
+
+function renderSun(scale, vf) {
+  const sun = _cachedSun;
+  if (!sun) return;
+  const p = projectStar(sun.ra, sun.dec, vf);
+  if (!p) return;
+  const alpha = edgeFade(p.cosAngle);
+  if (alpha <= 0) return;
+
+  const px = cx + p.x * scale, py = cy - p.y * scale;
+  const sunR = 7;
+
+  // Yellow core
+  ctx.beginPath();
+  ctx.arc(px, py, sunR, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255,220,50,${(alpha * 0.95).toFixed(3)})`;
+  ctx.fill();
+
+  // Warm glow
+  const grad = ctx.createRadialGradient(px, py, sunR, px, py, sunR * 4);
+  grad.addColorStop(0, `rgba(255,200,50,${(alpha * 0.3).toFixed(3)})`);
+  grad.addColorStop(1, 'rgba(255,180,30,0)');
+  ctx.beginPath();
+  ctx.arc(px, py, sunR * 4, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Label
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = `rgba(255,220,100,${(alpha * 0.85).toFixed(3)})`;
+  ctx.fillText('Sun', px, py + sunR + 4);
+  ctx.restore();
+}
+
 // --- Moon ---
 
 function renderMoon(scale, vf) {
@@ -871,7 +930,7 @@ function updatePopup() {
         + popupRow('Magnitude', target.mag.toFixed(2))
         + popupRow('Distance', formatDist(dist))
         + popupRow('Spectral Type', spect ? `<span style="color:${sColor}">${spect}</span>` : '—')
-        + popupRow('RA/Dec', formatRA(target.ra) + ' / ' + formatDec(target.dec))
+        + popupRow('RA/Dec', formatRA(target.ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(target.dec))
         + popupRow('Constellation', conName)
         + popupRow('Color (B-V)', `<span class="popup-swatch" style="background:rgb(${rgb})"></span>${target.ci != null ? target.ci.toFixed(2) : '—'}`);
 
@@ -883,8 +942,8 @@ function updatePopup() {
       const phasePct = live ? Math.round(live.phase * 100) : '—';
       html = `<div class="popup-name">${target.name}</div>`
         + `<div class="popup-type">Planet</div>`
-        + popupRow('RA/Dec', formatRA(ra) + ' / ' + formatDec(dec))
-        + popupRow('Az/Alt', `${hz.az.toFixed(1)}\u00b0 / ${hz.alt.toFixed(1)}\u00b0`)
+        + popupRow('RA/Dec', formatRA(ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(dec))
+        + popupRow('Az/Alt', `${formatAz(hz.az)}  ${formatAlt(hz.alt)}`)
         + popupRow('Distance', live ? live.distAU.toFixed(3) + ' AU' : '—')
         + popupRow('Magnitude', live ? live.magnitude.toFixed(2) : '—')
         + popupRow('Phase', phasePct + '%');
@@ -902,8 +961,8 @@ function updatePopup() {
       if (pct >= 98) phaseName = 'Full Moon';
       html = `<div class="popup-name">Moon</div>`
         + `<div class="popup-type">${phaseName} (${pct}% illuminated)</div>`
-        + popupRow('RA/Dec', formatRA(ra) + ' / ' + formatDec(dec))
-        + popupRow('Az/Alt', `${hz.az.toFixed(1)}\u00b0 / ${hz.alt.toFixed(1)}\u00b0`)
+        + popupRow('RA/Dec', formatRA(ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(dec))
+        + popupRow('Az/Alt', `${formatAz(hz.az)}  ${formatAlt(hz.alt)}`)
         + popupRow('Distance', moon ? moon.distAU.toFixed(5) + ' AU' : '—');
 
     } else if (target.type === 'constellation') {
@@ -912,11 +971,11 @@ function updatePopup() {
       html = `<div class="popup-name">${con ? con.name : target.abbr}</div>`
         + `<div class="popup-type">Constellation (${target.abbr})</div>`
         + popupRow('Stars', String(starCount))
-        + popupRow('Center RA/Dec', con ? formatRA(con.label_ra) + ' / ' + formatDec(con.label_dec) : '—');
+        + popupRow('Center RA/Dec', con ? formatRA(con.label_ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(con.label_dec) : '—');
     } else if (target.type === 'dso') {
       html = `<div class="popup-name">${target.name}</div>`
         + `<div class="popup-type">Deep Sky Object</div>`
-        + popupRow('RA/Dec', formatRA(target.ra) + ' / ' + formatDec(target.dec));
+        + popupRow('RA/Dec', formatRA(target.ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(target.dec));
     }
 
     popupEl.innerHTML = html;
@@ -1064,6 +1123,7 @@ function render() {
   renderHorizon(scale, vf);
   renderCardinals(scale, vf);
   renderPlanets(scale, vf);
+  renderSun(scale, vf);
   renderMoon(scale, vf);
   renderLabels(scale, vf);
   updateInfo();
