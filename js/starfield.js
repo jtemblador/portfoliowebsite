@@ -21,10 +21,13 @@ import { planetPositions, sunPosition, moonPosition } from './sky/planets.js';
 // --- Viewer modules (reusable, no application state) ---
 import {
   LAT_LA, LON_LA, D2R, R2D, FOV_DEFAULT, FOV_MIN, FOV_MAX, ALT_MIN, ALT_MAX,
-  BELOW_HORIZON_DIM, MAG_FADE_BAND, OBLIQUITY, SPEED_STEPS, CARDINALS, reducedMotion
+  BELOW_HORIZON_DIM, MAG_FADE_BAND, OBLIQUITY, CARDINALS, reducedMotion
 } from './viewer/config.js';
 import { bvToColor, magToRadius, magToAlpha, edgeFade, fovMagLimit } from './viewer/visual.js';
 import { buildViewFrame, projectStar, projectHzPoint } from './viewer/camera.js';
+import { findNearestStar, findNearestPlanet, findNearestDSO, findNearestConstLabel } from './viewer/hittest.js';
+import { advanceTime, getTimeState, togglePause, changeSpeed, setupTimeControls } from './viewer/controls.js';
+import { updatePopup } from './viewer/popup.js';
 
 // --- DOM ---
 
@@ -50,12 +53,7 @@ let clickedConst   = null;  // persisted constellation highlight
 let constFadeAlphas = {};    // { abbr: alpha } per-constellation fade values
 let _lastFrameTime = performance.now();
 
-// Time controls
-let timeOffsetMs = 0;       // offset from real time (ms)
-let timeSpeed = 1;          // 0=paused, 1=real, 10/100/1000=fast, negative=rewind
-let _lastRealTime = Date.now();
-let _prevTimeSpeed = 1;     // for pause/resume toggle
-// SPEED_STEPS imported from viewer/config.js
+// Time state managed by viewer/controls.js (advanceTime, getTimeState, togglePause, etc.)
 
 // Animated pan
 let viewTarget = null;      // { az, alt } or null — lerp target
@@ -97,112 +95,9 @@ function resize() {
   cy = H / 2;
 }
 
-// --- Formatters ---
+// Formatters imported from viewer/popup.js
 
-function formatRA(ra) {
-  const h = Math.floor(ra);
-  const mFull = (ra - h) * 60;
-  const m = Math.floor(mFull);
-  const s = ((mFull - m) * 60).toFixed(1);
-  return `${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m ${s.padStart(4,'0')}s`;
-}
-
-function formatDec(dec) {
-  const sign = dec >= 0 ? '+' : '-';
-  const d = Math.abs(dec);
-  const deg = Math.floor(d);
-  const mFull = (d - deg) * 60;
-  const m = Math.floor(mFull);
-  const s = ((mFull - m) * 60).toFixed(1);
-  return `${sign}${String(deg).padStart(2,'0')}\u00b0 ${String(m).padStart(2,'0')}' ${s.padStart(4,'0')}"`;
-}
-
-function formatAz(az) {
-  const deg = Math.floor(az);
-  const mFull = (az - deg) * 60;
-  const m = Math.floor(mFull);
-  const s = ((mFull - m) * 60).toFixed(1);
-  return `${String(deg).padStart(3,'0')}\u00b0 ${String(m).padStart(2,'0')}' ${s.padStart(4,'0')}"`;
-}
-
-function formatAlt(alt) {
-  const sign = alt >= 0 ? '+' : '-';
-  const d = Math.abs(alt);
-  const deg = Math.floor(d);
-  const mFull = (d - deg) * 60;
-  const m = Math.floor(mFull);
-  const s = ((mFull - m) * 60).toFixed(1);
-  return `${sign}${String(deg).padStart(2,'0')}\u00b0 ${String(m).padStart(2,'0')}' ${s.padStart(4,'0')}"`;
-}
-
-// ============================================================
-// Hit testing
-// ============================================================
-
-function findNearestStar(clickX, clickY, threshold) {
-  // Weighted hit testing: bright stars have larger effective hit radius,
-  // faint stars only selectable when zoomed in (small FOV)
-  let bestScore = Infinity, bestIdx = -1;
-  const th2 = threshold * threshold;
-  for (let i = 0; i < starScreenCount; i++) {
-    const bi = i * 3;
-    const dx = starScreenBuf[bi] - clickX, dy = starScreenBuf[bi + 1] - clickY;
-    const dist2 = dx * dx + dy * dy;
-    if (dist2 > th2) continue;
-    const si = starScreenBuf[bi + 2];
-    const mag = data.stars[si][2];
-    // Penalize faint stars: effective distance increases with magnitude
-    // Bright stars (mag 0) get no penalty; faint (mag 6+) get 3x distance penalty
-    const magPenalty = 1 + Math.max(0, mag - 2) * 0.3;
-    const score = dist2 * magPenalty * magPenalty;
-    if (score < bestScore) { bestScore = score; bestIdx = i; }
-  }
-  if (bestIdx < 0) return null;
-  const bi = bestIdx * 3;
-  const si = starScreenBuf[bi + 2];
-  const s = data.stars[si];
-  return {
-    type: 'star', px: starScreenBuf[bi], py: starScreenBuf[bi + 1],
-    mag: s[2], ci: s[3], dist: s[4], spect: s[5], ra: s[0], dec: s[1],
-  };
-}
-
-function findNearestPlanet(clickX, clickY, threshold) {
-  let bestDist = threshold * threshold, best = null;
-  for (const p of planetScreenBuf) {
-    const dx = p.px - clickX, dy = p.py - clickY;
-    const d = dx * dx + dy * dy;
-    if (d < bestDist) { bestDist = d; best = p; }
-  }
-  return best ? { type: 'planet', ...best } : null;
-}
-
-function findNearestConstLabel(clickX, clickY, threshold) {
-  let bestDist = threshold * threshold, best = null;
-  for (const c of constLabelScreen) {
-    const dx = c.px - clickX, dy = c.py - clickY;
-    const d = dx * dx + dy * dy;
-    if (d < bestDist) { bestDist = d; best = c; }
-  }
-  return best;
-}
-
-function findNearestDSO(clickX, clickY, threshold) {
-  let bestDist = threshold * threshold, best = null;
-  for (const d of dsoScreenBuf) {
-    const dx = d.px - clickX, dy = d.py - clickY;
-    const dist2 = dx * dx + dy * dy;
-    // Use screenR as hit area (at least threshold)
-    const hitR = Math.max(d.screenR, threshold);
-    if (dist2 < hitR * hitR && dist2 < bestDist) { bestDist = dist2; best = d; }
-  }
-  return best ? { type: 'dso', ...best } : null;
-}
-
-function lookupStarName(ra, dec) {
-  if (!starNameLookup) return null;
-  return starNameLookup.get(ra.toFixed(6) + ',' + dec.toFixed(5)) || null;
-}
+// Hit testing imported from viewer/hittest.js (pure functions with explicit parameters)
 
 // ============================================================
 // Render layers
@@ -730,120 +625,15 @@ function renderLabels(scale, vf) {
   }
 }
 
-// --- Info popup ---
+// Info popup imported from viewer/popup.js
 
-let _popupTarget = null; // track what's shown to avoid re-rendering every frame
-
-/** Spectral class letter → display color */
-function spectColor(spect) {
-  if (!spect) return '#aaa';
-  const cls = spect.charAt(0).toUpperCase();
-  const colors = { O: '#4466ff', B: '#6688ff', A: '#88bbff', F: '#ffffff', G: '#ffee99', K: '#ff9944', M: '#ff4422' };
-  return colors[cls] || '#aaa';
-}
-
-function formatDist(dist) {
-  if (dist == null) return '\u2014';
-  if (dist < 100) return dist.toFixed(1) + ' ly';
-  return Math.round(dist).toLocaleString() + ' ly';
-}
-
-function popupRow(label, value) {
-  return `<div class="popup-row"><span class="popup-label">${label}</span><span class="popup-value">${value}</span></div>`;
-}
-
-function updatePopup() {
-  if (!popupEl) return;
-
-  // Determine what should be shown: selectedObject, clickedConst, or nothing
-  const target = selectedObject || (clickedConst ? { type: 'constellation', abbr: clickedConst } : null);
-
-  if (!target) {
-    if (_popupTarget) {
-      popupEl.classList.remove('visible');
-      popupEl.addEventListener('transitionend', () => {
-        if (!_popupTarget) popupEl.classList.remove('fade-in');
-      }, { once: true });
-      _popupTarget = null;
-    }
-    return;
-  }
-
-  // Build content only when target changes
-  // For planets/Moon, include timestamp so popup refreshes once per second with live data
-  const timeSuffix = (target.type === 'planet' || target.type === 'moon') ? ':' + Math.floor(Date.now() / 1000) : '';
-  const targetKey = target.type + ':' + (target.name || target.abbr || target.ra) + timeSuffix;
-  if (_popupTarget !== targetKey) {
-    _popupTarget = targetKey;
-    let html = '';
-
-    if (target.type === 'star') {
-      const info = lookupStarName(target.ra, target.dec);
-      const name = info ? info.name : '—';
-      const conAbbr = info ? info.con : (hipToConst && hipToConst.get(target.ra.toFixed(6)+','+target.dec.toFixed(5))) || '—';
-      const conName = conAbbr !== '—' ? (constByAbbr.get(conAbbr)?.name || conAbbr) : '—';
-      const rgb = bvToColor(target.ci);
-      const dist = target.dist ?? (info?.dist);
-      const spect = target.spect ?? (info?.spect);
-      const sColor = spectColor(spect);
-      html = `<div class="popup-name">${name !== '—' ? name : 'Star'}</div>`
-        + `<div class="popup-type">Star</div>`
-        + popupRow('Magnitude', target.mag.toFixed(2))
-        + popupRow('Distance', formatDist(dist))
-        + popupRow('Spectral Type', spect ? `<span style="color:${sColor}">${spect}</span>` : '—')
-        + popupRow('RA/Dec', formatRA(target.ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(target.dec))
-        + popupRow('Constellation', conName)
-        + popupRow('Color (B-V)', `<span class="popup-swatch" style="background:rgb(${rgb})"></span>${target.ci != null ? target.ci.toFixed(2) : '—'}`);
-
-    } else if (target.type === 'planet') {
-      // Get live data from cached ephemeris
-      const live = _cachedPlanets?.find(p => p.name === target.name);
-      const ra = live?.ra ?? target.ra, dec = live?.dec ?? target.dec;
-      const hz = eqToHz(ra, dec, lst((Date.now() + timeOffsetMs) / 86400000 + 2440587.5, LON_LA), LAT_LA);
-      const phasePct = live ? Math.round(live.phase * 100) : '—';
-      html = `<div class="popup-name">${target.name}</div>`
-        + `<div class="popup-type">Planet</div>`
-        + popupRow('RA/Dec', formatRA(ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(dec))
-        + popupRow('Az/Alt', `${formatAz(hz.az)}  ${formatAlt(hz.alt)}`)
-        + popupRow('Distance', live ? live.distAU.toFixed(3) + ' AU' : '—')
-        + popupRow('Magnitude', live ? live.magnitude.toFixed(2) : '—')
-        + popupRow('Phase', phasePct + '%');
-
-    } else if (target.type === 'moon') {
-      const moon = _cachedMoon;
-      const ra = moon?.ra ?? target.ra, dec = moon?.dec ?? target.dec;
-      const hz = eqToHz(ra, dec, lst((Date.now() + timeOffsetMs) / 86400000 + 2440587.5, LON_LA), LAT_LA);
-      const k = moon ? (1 + Math.cos(moon.elongation * D2R)) / 2 : 0.5;
-      const pct = Math.round(k * 100);
-      let phaseName = 'New Moon';
-      if (pct > 2 && pct < 48) phaseName = 'Waxing Crescent';
-      if (pct >= 48 && pct <= 52) phaseName = 'Quarter';
-      if (pct > 52 && pct < 98) phaseName = 'Gibbous';
-      if (pct >= 98) phaseName = 'Full Moon';
-      html = `<div class="popup-name">Moon</div>`
-        + `<div class="popup-type">${phaseName} (${pct}% illuminated)</div>`
-        + popupRow('RA/Dec', formatRA(ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(dec))
-        + popupRow('Az/Alt', `${formatAz(hz.az)}  ${formatAlt(hz.alt)}`)
-        + popupRow('Distance', moon ? Math.round(moon.distAU * 149597870.7).toLocaleString() + ' km' : '—');
-
-    } else if (target.type === 'constellation') {
-      const con = constByAbbr.get(target.abbr);
-      const starCount = con ? new Set(con.lines.flat()).size : 0;
-      html = `<div class="popup-name">${con ? con.name : target.abbr}</div>`
-        + `<div class="popup-type">Constellation (${target.abbr})</div>`
-        + popupRow('Stars', String(starCount))
-        + popupRow('Center RA/Dec', con ? formatRA(con.label_ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(con.label_dec) : '—');
-    } else if (target.type === 'dso') {
-      html = `<div class="popup-name">${target.name}</div>`
-        + `<div class="popup-type">Deep Sky Object</div>`
-        + popupRow('RA/Dec', formatRA(target.ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(target.dec));
-    }
-
-    popupEl.innerHTML = html;
-    // Trigger fade-in (double rAF ensures reflow between display:block and opacity change)
-    popupEl.classList.add('fade-in');
-    requestAnimationFrame(() => requestAnimationFrame(() => popupEl.classList.add('visible')));
-  }
+// updatePopup delegates to viewer/popup.js with application state as dependencies
+function callUpdatePopup() {
+  updatePopup(popupEl, selectedObject, clickedConst, {
+    cachedPlanets: _cachedPlanets, cachedMoon: _cachedMoon,
+    constByAbbr, hipToConst, starNameLookup,
+    timeOffsetMs: getTimeState().timeOffsetMs,
+  });
 }
 
 // --- Clock ---
@@ -861,24 +651,23 @@ let _lastClockSec = -1;
 let _lastClockSpeed = null;
 function updateClock() {
   if (!clockTimeEl) return;
-  const simTime = new Date(Date.now() + timeOffsetMs);
+  const ts = getTimeState();
+  const simTime = new Date(Date.now() + ts.timeOffsetMs);
   const s = simTime.getSeconds();
-  // Throttle: only update DOM when second changes or speed changes
-  if (s === _lastClockSec && timeSpeed === _lastClockSpeed) return;
+  if (s === _lastClockSec && ts.timeSpeed === _lastClockSpeed) return;
   _lastClockSec = s;
-  _lastClockSpeed = timeSpeed;
+  _lastClockSpeed = ts.timeSpeed;
   clockTimeEl.textContent = clockFmt.format(simTime);
   clockDateEl.textContent = dateFmt.format(simTime);
   const speedEl = document.getElementById('time-speed');
   if (speedEl) {
-    if (timeSpeed === 0) speedEl.textContent = 'Paused';
-    else if (timeSpeed === 1) speedEl.textContent = '';
-    else speedEl.textContent = `${timeSpeed}\u00d7`;
+    if (ts.timeSpeed === 0) speedEl.textContent = 'Paused';
+    else if (ts.timeSpeed === 1) speedEl.textContent = '';
+    else speedEl.textContent = `${ts.timeSpeed}\u00d7`;
   }
-  // LIVE indicator
   const liveEl = document.getElementById('live-indicator');
   if (liveEl) {
-    const isLive = timeSpeed === 1 && Math.abs(timeOffsetMs) < 1000;
+    const isLive = ts.timeSpeed === 1 && Math.abs(ts.timeOffsetMs) < 1000;
     liveEl.classList.toggle('live', isLive);
     liveEl.classList.toggle('not-live', !isLive);
   }
@@ -925,12 +714,8 @@ function updateEphemeris(jd) {
 // --- Main render ---
 
 function render() {
-  // Time with offset and speed
-  const realNow = Date.now();
-  const elapsed = realNow - _lastRealTime;
-  _lastRealTime = realNow;
-  timeOffsetMs += elapsed * (timeSpeed - 1);
-  const jd = (realNow + timeOffsetMs) / 86400000 + 2440587.5;
+  // Advance simulated time (managed by viewer/controls.js)
+  const jd = advanceTime();
 
   const lstDeg = lst(jd, LON_LA);
   updateEphemeris(jd);
@@ -989,7 +774,7 @@ function render() {
   renderLabels(scale, vf);
   updateInfo();
   updateClock();
-  updatePopup();
+  callUpdatePopup();
 }
 
 function frame() {
@@ -1022,19 +807,19 @@ function handleClick(clickX, clickY) {
   }
 
   // Check planets
-  const planet = findNearestPlanet(clickX, clickY, 20);
+  const planet = findNearestPlanet(clickX, clickY, 20, planetScreenBuf);
   if (planet) { selectedObject = planet; clickedConst = null; return; }
 
   // Check DSOs (nebulae, galaxies, clusters)
-  const dso = findNearestDSO(clickX, clickY, 20);
+  const dso = findNearestDSO(clickX, clickY, 20, dsoScreenBuf);
   if (dso) { selectedObject = dso; clickedConst = null; return; }
 
   // Check constellation labels (priority over faint stars)
-  const cl = findNearestConstLabel(clickX, clickY, 30);
+  const cl = findNearestConstLabel(clickX, clickY, 30, constLabelScreen);
   if (cl) { clickedConst = cl.abbr; selectedObject = null; return; }
 
   // Check stars (bright stars weighted higher via findNearestStar)
-  const star = findNearestStar(clickX, clickY, 15);
+  const star = findNearestStar(clickX, clickY, 15, starScreenBuf, starScreenCount, data.stars);
   if (star) {
     selectedObject = star;
     const key = star.ra.toFixed(6) + ',' + star.dec.toFixed(5);
@@ -1065,13 +850,13 @@ function setupInput() {
     if (!drag.active) {
       // Hover: check nearest star for constellation membership, then labels
       let found = null;
-      const nearStar = findNearestStar(cursorPx, cursorPy, 20);
+      const nearStar = findNearestStar(cursorPx, cursorPy, 20, starScreenBuf, starScreenCount, data.stars);
       if (nearStar && hipToConst) {
         const key = nearStar.ra.toFixed(6) + ',' + nearStar.dec.toFixed(5);
         found = hipToConst.get(key) || null;
       }
       if (!found) {
-        const cl = findNearestConstLabel(cursorPx, cursorPy, 50);
+        const cl = findNearestConstLabel(cursorPx, cursorPy, 50, constLabelScreen);
         found = cl ? cl.abbr : null;
       }
       hoveredConst = found;
@@ -1198,41 +983,7 @@ function setupInput() {
   window.addEventListener('resize', resize);
 }
 
-// --- Time Controls ---
-
-function togglePause() {
-  if (timeSpeed === 0) {
-    timeSpeed = _prevTimeSpeed || 1;
-    _lastRealTime = Date.now(); // prevent stale elapsed accumulation on resume
-  } else {
-    _prevTimeSpeed = timeSpeed;
-    timeSpeed = 0;
-  }
-}
-
-function changeSpeed(dir) {
-  const wasPaused = timeSpeed === 0;
-  const idx = SPEED_STEPS.indexOf(timeSpeed);
-  if (idx === -1) return; // safety: current speed not in steps
-  const next = idx + dir;
-  if (next >= 0 && next < SPEED_STEPS.length) timeSpeed = SPEED_STEPS[next];
-  if (wasPaused && timeSpeed !== 0) _lastRealTime = Date.now();
-}
-
-function resetTime() {
-  timeOffsetMs = 0; timeSpeed = 1; _lastRealTime = Date.now();
-}
-
-function setupTimeControls() {
-  const btnRew = document.getElementById('btn-rewind');
-  const btnPause = document.getElementById('btn-pause');
-  const btnFwd = document.getElementById('btn-forward');
-  const btnNow = document.getElementById('btn-now');
-  if (btnRew) btnRew.addEventListener('click', () => changeSpeed(-1));
-  if (btnPause) btnPause.addEventListener('click', togglePause);
-  if (btnFwd) btnFwd.addEventListener('click', () => changeSpeed(1));
-  if (btnNow) btnNow.addEventListener('click', resetTime);
-}
+// Time controls imported from viewer/controls.js
 
 // --- Search ---
 
@@ -1324,7 +1075,7 @@ function navigateToResult(result) {
 
   // Convert RA/Dec to current alt/az for pan target
   const realNow = Date.now();
-  const jd = (realNow + timeOffsetMs) / 86400000 + 2440587.5;
+  const jd = (realNow + getTimeState().timeOffsetMs) / 86400000 + 2440587.5;
   const lstDeg = lst(jd, LON_LA);
   const hz = eqToHz(result.ra, result.dec, lstDeg, LAT_LA);
 
@@ -1478,7 +1229,7 @@ async function init() {
   constByAbbr = new Map(data.constellations.map(c => [c.abbr, c]));
 
   // Initialize ephemeris so search index has planet positions
-  const initJd = (Date.now() + timeOffsetMs) / 86400000 + 2440587.5;
+  const initJd = (Date.now() + getTimeState().timeOffsetMs) / 86400000 + 2440587.5;
   updateEphemeris(initJd);
   buildSearchIndex();
   setupTimeControls();
