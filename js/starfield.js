@@ -182,11 +182,10 @@ function edgeFade(cosAngle) {
 }
 
 function fovMagLimit(fovDeg) {
-  // FOV 150° → mag 4.0, FOV 90° → mag 6.0, FOV 60° → mag 6.5, FOV 15° → mag 7.0
-  // Faint stars (>6.0) only visible when zoomed in past FOV 90°
+  // FOV 150° → mag 4.0 (only brightest), FOV 90° → mag 6.0, FOV 50° → mag 6.6 (all stars), FOV 15° → mag 7.0
   if (fovDeg >= 90) return Math.max(1.0, 6.0 + (fovDeg - 90) * (-2.0 / 60));
-  if (fovDeg >= 60) return 6.0 + (90 - fovDeg) * (0.5 / 30);
-  return 6.5 + (60 - fovDeg) * (0.5 / 45);
+  if (fovDeg >= 50) return 6.0 + (90 - fovDeg) * (0.6 / 40);
+  return 6.6 + (50 - fovDeg) * (0.4 / 35);
 }
 
 function formatRA(ra) {
@@ -670,6 +669,34 @@ function renderEcliptic(scale, vf) {
   ctx.stroke(); ctx.setLineDash([]);
 }
 
+/** Zodiac band — ±9° around the ecliptic where constellations and planets live. */
+function renderZodiacBand(scale, vf) {
+  const oblR = OBLIQUITY * D2R;
+  const BAND_HALF = 9; // degrees above/below ecliptic
+
+  // Draw two parallel lines at ecliptic latitude ±BAND_HALF
+  for (const offset of [BAND_HALF, -BAND_HALF]) {
+    ctx.strokeStyle = 'rgba(40,120,200,0.18)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    drawGridLine(361, i => {
+      const lamR = i * D2R;
+      // Ecliptic longitude → ecliptic lat offset → equatorial RA/Dec
+      const eclLat = offset * D2R;
+      const sinLam = Math.sin(lamR), cosLam = Math.cos(lamR);
+      const sinB = Math.sin(eclLat), cosB = Math.cos(eclLat);
+      // Ecliptic → equatorial rotation
+      const x = cosB * cosLam;
+      const y = cosB * sinLam * Math.cos(oblR) - sinB * Math.sin(oblR);
+      const z = cosB * sinLam * Math.sin(oblR) + sinB * Math.cos(oblR);
+      const ra = ((Math.atan2(y, x) * R2D + 360) % 360) / 15;
+      const dec = Math.asin(Math.max(-1, Math.min(1, z))) * R2D;
+      return projectStar(ra, dec, vf);
+    }, scale);
+    ctx.stroke();
+  }
+}
+
 // --- Horizon, Cardinals ---
 
 function renderHorizon(scale, vf) {
@@ -879,6 +906,13 @@ function updateClock() {
     else if (timeSpeed === 1) speedEl.textContent = '';
     else speedEl.textContent = `${timeSpeed}\u00d7`;
   }
+  // LIVE indicator
+  const liveEl = document.getElementById('live-indicator');
+  if (liveEl) {
+    const isLive = timeSpeed === 1 && Math.abs(timeOffsetMs) < 1000;
+    liveEl.classList.toggle('live', isLive);
+    liveEl.classList.toggle('not-live', !isLive);
+  }
 }
 
 // --- Info panel ---
@@ -980,7 +1014,7 @@ function render() {
   renderTwilight(scale, vf, lstDeg);
   if (overlays.altAzGrid) renderAltAzGrid(scale, vf);
   if (overlays.eqGrid) renderEqGrid(scale, vf);
-  if (overlays.ecliptic) renderEcliptic(scale, vf);
+  if (overlays.ecliptic) { renderZodiacBand(scale, vf); renderEcliptic(scale, vf); }
   renderDSOs(scale, vf);
   renderConstellationLines(scale, vf);
   renderStars(scale, vf);
@@ -1109,7 +1143,7 @@ function setupInput() {
     let delta = e.deltaY;
     if (e.deltaMode === 1) delta *= 30;
     if (e.deltaMode === 2) delta *= 300;
-    view.fov = Math.max(FOV_MIN, Math.min(FOV_MAX, view.fov * Math.pow(1.001, delta)));
+    view.fov = Math.max(FOV_MIN, Math.min(FOV_MAX, view.fov * Math.pow(1.0003, delta)));
   }, { passive: false });
 
   // Keyboard shortcuts
