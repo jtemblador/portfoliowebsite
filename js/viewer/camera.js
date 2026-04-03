@@ -15,7 +15,7 @@
  *         → canvas: px = cx + x*scale, py = cy - y*scale
  */
 
-import { D2R, SIN_LAT, COS_LAT } from './config.js';
+import { D2R, ALT_MIN, ALT_MAX, SIN_LAT, COS_LAT } from './config.js';
 
 /**
  * Build camera basis vectors from the current view orientation.
@@ -66,6 +66,18 @@ export function projectStar(ra, dec, viewFrame) {
  * Project a point in horizontal coordinates (alt/az degrees) to screen space.
  * Used for horizon line, cardinal labels, and grid overlays.
  */
+/**
+ * Apply drag rotation to the view. Scales azimuth movement by cos(alt)
+ * so horizontal dragging feels consistent near the zenith/nadir.
+ */
+export function applyDragRotation(alt, az, dx, dy, degPerPx) {
+  const cosAlt = Math.cos(alt * D2R);
+  let newAz = ((az - dx * degPerPx / Math.max(cosAlt, 0.15)) % 360 + 360) % 360;
+  let newAlt = alt + dy * degPerPx;
+  newAlt = Math.max(ALT_MIN, Math.min(ALT_MAX, newAlt));
+  return { alt: newAlt, az: newAz };
+}
+
 export function projectHzPoint(alt, az, viewFrame) {
   const altR = alt * D2R, azR = az * D2R;
   const xHz = Math.cos(altR) * Math.sin(azR);

@@ -20,15 +20,15 @@ import { planetPositions, sunPosition, moonPosition } from './sky/planets.js';
 
 // --- Viewer modules (reusable, no application state) ---
 import {
-  LAT_LA, LON_LA, D2R, R2D, FOV_DEFAULT, FOV_MIN, FOV_MAX, ALT_MIN, ALT_MAX,
+  LAT_LA, LON_LA, D2R, R2D, FOV_DEFAULT, ALT_MIN, ALT_MAX,
   BELOW_HORIZON_DIM, MAG_FADE_BAND, OBLIQUITY, CARDINALS, reducedMotion
 } from './viewer/config.js';
 import { bvToColor, magToRadius, magToAlpha, edgeFade, fovMagLimit } from './viewer/visual.js';
 import { buildViewFrame, projectStar, projectHzPoint } from './viewer/camera.js';
-import { findNearestStar, findNearestPlanet, findNearestDSO, findNearestConstLabel } from './viewer/hittest.js';
-import { advanceTime, getTimeState, togglePause, changeSpeed, setupTimeControls } from './viewer/controls.js';
+import { advanceTime, getTimeState, setupTimeControls } from './viewer/controls.js';
 import { updatePopup } from './viewer/popup.js';
-import { buildSearchIndex, setupSearch, openSearch, closeSearch, isSearchOpen } from './viewer/search.js';
+import { buildSearchIndex, setupSearch } from './viewer/search.js';
+import { setupInput } from './viewer/input.js';
 
 // --- DOM ---
 
@@ -61,7 +61,6 @@ let viewTarget = null;      // { az, alt } or null — lerp target
 
 // Search managed by viewer/search.js
 
-let cursorPx = -1, cursorPy = -1;
 let W = 0, H = 0, cx = 0, cy = 0;
 
 // Screen position buffers for hit testing (filled each frame)
@@ -684,16 +683,6 @@ function updateInfo() {
     g(overlays.ecliptic, 'E') + ' ' + g(toggles.constellations, 'C');
 }
 
-// --- Drag ---
-
-function applyDragRotation(alt, az, dx, dy, degPerPx) {
-  const cosAlt = Math.cos(alt * D2R);
-  let newAz = ((az - dx * degPerPx / Math.max(cosAlt, 0.15)) % 360 + 360) % 360;
-  let newAlt = alt + dy * degPerPx;
-  newAlt = Math.max(ALT_MIN, Math.min(ALT_MAX, newAlt));
-  return { alt: newAlt, az: newAz };
-}
-
 // --- Ephemeris cache (planets/sun/moon recomputed once per minute, not per frame) ---
 
 let _cachedPlanets = null;
@@ -781,224 +770,7 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
-// --- Input ---
-
-function syncOverlayButtons() {
-  for (const [id, key] of [['btn-altaz','altAzGrid'],['btn-eq','eqGrid'],['btn-ecl','ecliptic']]) {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle('active', overlays[key]);
-  }
-  const btnConst = document.getElementById('btn-const');
-  if (btnConst) btnConst.classList.toggle('active', toggles.constellations);
-}
-
-function handleClick(clickX, clickY) {
-  // Priority: Moon > Planets > DSOs > Constellation labels > Stars > Empty sky
-
-  // Check Moon
-  if (moonScreenPos) {
-    const dx = moonScreenPos.px - clickX, dy = moonScreenPos.py - clickY;
-    if (dx*dx + dy*dy < 20*20) {
-      selectedObject = { type: 'moon', ...moonScreenPos };
-      clickedConst = null;
-      return;
-    }
-  }
-
-  // Check planets
-  const planet = findNearestPlanet(clickX, clickY, 20, planetScreenBuf);
-  if (planet) { selectedObject = planet; clickedConst = null; return; }
-
-  // Check DSOs (nebulae, galaxies, clusters)
-  const dso = findNearestDSO(clickX, clickY, 20, dsoScreenBuf);
-  if (dso) { selectedObject = dso; clickedConst = null; return; }
-
-  // Check constellation labels (priority over faint stars)
-  const cl = findNearestConstLabel(clickX, clickY, 30, constLabelScreen);
-  if (cl) { clickedConst = cl.abbr; selectedObject = null; return; }
-
-  // Check stars (bright stars weighted higher via findNearestStar)
-  const star = findNearestStar(clickX, clickY, 15, starScreenBuf, starScreenCount, data.stars);
-  if (star) {
-    selectedObject = star;
-    const key = star.ra.toFixed(6) + ',' + star.dec.toFixed(5);
-    clickedConst = (hipToConst && hipToConst.get(key)) || null;
-    return;
-  }
-
-  // Deselect
-  selectedObject = null;
-  clickedConst = null;
-}
-
-function setupInput() {
-  canvas.style.cursor = 'grab';
-
-  canvas.addEventListener('mousedown', (e) => {
-    drag.active = true;
-    drag.prevX = e.clientX; drag.prevY = e.clientY;
-    drag.startX = e.clientX; drag.startY = e.clientY;
-    drag.startTime = performance.now();
-    viewTarget = null; // cancel animated pan on drag
-    canvas.style.cursor = 'grabbing';
-  });
-
-  window.addEventListener('mousemove', (e) => {
-    cursorPx = e.clientX; cursorPy = e.clientY;
-
-    if (!drag.active) {
-      // Hover: check nearest star for constellation membership, then labels
-      let found = null;
-      const nearStar = findNearestStar(cursorPx, cursorPy, 20, starScreenBuf, starScreenCount, data.stars);
-      if (nearStar && hipToConst) {
-        const key = nearStar.ra.toFixed(6) + ',' + nearStar.dec.toFixed(5);
-        found = hipToConst.get(key) || null;
-      }
-      if (!found) {
-        const cl = findNearestConstLabel(cursorPx, cursorPy, 50, constLabelScreen);
-        found = cl ? cl.abbr : null;
-      }
-      hoveredConst = found;
-      return;
-    }
-
-    const dx = e.clientX - drag.prevX, dy = e.clientY - drag.prevY;
-    const degPerPx = view.fov / Math.min(W, H);
-    const nv = applyDragRotation(view.alt, view.az, dx, dy, degPerPx);
-    view.alt = nv.alt; view.az = nv.az;
-    drag.prevX = e.clientX; drag.prevY = e.clientY;
-  });
-
-  window.addEventListener('mouseup', (e) => {
-    const wasDrag = drag.active;
-    drag.active = false;
-    canvas.style.cursor = 'grab';
-
-    // Click detection: small displacement + short duration
-    if (wasDrag) {
-      const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
-      const dt = performance.now() - drag.startTime;
-      if (Math.abs(dx) < 5 && Math.abs(dy) < 5 && dt < 300) {
-        handleClick(e.clientX, e.clientY);
-      }
-    }
-  });
-
-  canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    let delta = e.deltaY;
-    if (e.deltaMode === 1) delta *= 30;
-    if (e.deltaMode === 2) delta *= 300;
-    view.fov = Math.max(FOV_MIN, Math.min(FOV_MAX, view.fov * Math.pow(1.0003, delta)));
-  }, { passive: false });
-
-  // Keyboard shortcuts
-  window.addEventListener('keydown', (e) => {
-    // Search bar intercepts keys when open
-    if (isSearchOpen() && e.key !== 'Escape') return;
-
-    // Grid/overlay toggles
-    if (e.key === 'g' || e.key === 'G') { overlays.altAzGrid = !overlays.altAzGrid; syncOverlayButtons(); }
-    if (e.key === 'q' || e.key === 'Q') { overlays.eqGrid = !overlays.eqGrid; syncOverlayButtons(); }
-    if (e.key === 'e' || e.key === 'E') { overlays.ecliptic = !overlays.ecliptic; syncOverlayButtons(); }
-    if (e.key === 'c' || e.key === 'C') { toggles.constellations = !toggles.constellations; syncOverlayButtons(); }
-
-    // Arrow key panning
-    const PAN_DEG = 2;
-    if (e.key === 'ArrowUp')    { viewTarget = null; const nv = applyDragRotation(view.alt, view.az, 0, -1, PAN_DEG); view.alt = nv.alt; e.preventDefault(); }
-    if (e.key === 'ArrowDown')  { viewTarget = null; const nv = applyDragRotation(view.alt, view.az, 0, 1, PAN_DEG); view.alt = nv.alt; e.preventDefault(); }
-    if (e.key === 'ArrowLeft')  { viewTarget = null; const nv = applyDragRotation(view.alt, view.az, -1, 0, PAN_DEG); view.az = nv.az; e.preventDefault(); }
-    if (e.key === 'ArrowRight') { viewTarget = null; const nv = applyDragRotation(view.alt, view.az, 1, 0, PAN_DEG); view.az = nv.az; e.preventDefault(); }
-    if (e.key === '+' || e.key === '=') view.fov = Math.max(FOV_MIN, view.fov * 0.95);
-    if (e.key === '-') view.fov = Math.min(FOV_MAX, view.fov * 1.05);
-
-    // Search
-    if (e.key === '/') { e.preventDefault(); openSearch(); }
-    if (e.key === 'Escape') { if (isSearchOpen()) closeSearch(); else { selectedObject = null; clickedConst = null; } }
-
-    // Time controls
-    if (e.key === ' ') { e.preventDefault(); togglePause(); }
-  });
-
-  // Button wiring
-  for (const [id, obj, key] of [
-    ['btn-altaz', overlays, 'altAzGrid'], ['btn-eq', overlays, 'eqGrid'], ['btn-ecl', overlays, 'ecliptic'],
-    ['btn-const', toggles, 'constellations'],
-  ]) {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('click', () => { obj[key] = !obj[key]; syncOverlayButtons(); });
-  }
-
-  // Touch
-  let lastTouchDist = null, lastTouchX = null, lastTouchY = null;
-  let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
-
-  canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    if (e.touches.length === 1) {
-      lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
-      touchStartX = lastTouchX; touchStartY = lastTouchY;
-      touchStartTime = performance.now();
-      lastTouchDist = null;
-    } else if (e.touches.length === 2) {
-      lastTouchDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY,
-      );
-    }
-  }, { passive: false });
-
-  canvas.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    if (e.touches.length === 1 && lastTouchX !== null) {
-      const dx = e.touches[0].clientX - lastTouchX, dy = e.touches[0].clientY - lastTouchY;
-      const degPerPx = view.fov / Math.min(W, H);
-      const nv = applyDragRotation(view.alt, view.az, dx, dy, degPerPx);
-      view.alt = nv.alt; view.az = nv.az;
-      lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
-    } else if (e.touches.length === 2 && lastTouchDist !== null) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY,
-      );
-      view.fov = Math.max(FOV_MIN, Math.min(FOV_MAX, view.fov * lastTouchDist / dist));
-      lastTouchDist = dist;
-    }
-  }, { passive: false });
-
-  canvas.addEventListener('touchend', (e) => {
-    if (e.touches.length < 2) lastTouchDist = null;
-    if (e.touches.length < 1) {
-      // Tap detection
-      const dx = lastTouchX - touchStartX, dy = lastTouchY - touchStartY;
-      const dt = performance.now() - touchStartTime;
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) {
-        handleClick(touchStartX, touchStartY);
-      }
-      lastTouchX = null; lastTouchY = null;
-    }
-  }, { passive: false });
-
-  window.addEventListener('resize', resize);
-}
-
-// Time controls imported from viewer/controls.js
-
-// Search imported from viewer/search.js
-
-// Overlay menu toggle (stays here — not part of search feature)
-function setupOverlayMenu() {
-  const menuToggle = document.getElementById('menu-toggle');
-  const overlayMenu = document.getElementById('overlay-menu');
-  if (menuToggle && overlayMenu) {
-    menuToggle.addEventListener('click', () => overlayMenu.classList.toggle('visible'));
-    document.addEventListener('click', (e) => {
-      if (!menuToggle.contains(e.target) && !overlayMenu.contains(e.target)) {
-        overlayMenu.classList.remove('visible');
-      }
-    });
-  }
-}
+// Input, search, and time controls managed by viewer modules
 
 // --- Init ---
 
@@ -1063,10 +835,20 @@ async function init() {
     setClickedConst: (c) => { clickedConst = c; },
     getAppState: () => ({ cachedPlanets: _cachedPlanets, cachedMoon: _cachedMoon, data, cx, cy }),
   });
-  setupOverlayMenu();
-
-  setupInput();
-  syncOverlayButtons();
+  setupInput(
+    { view, drag, overlays, toggles, canvas, getSize: () => ({ W, H }) },
+    {
+      setViewTarget: (t) => { viewTarget = t; },
+      setSelectedObject: (o) => { selectedObject = o; },
+      setClickedConst: (c) => { clickedConst = c; },
+      setHoveredConst: (h) => { hoveredConst = h; },
+      onResize: resize,
+      getScreenState: () => ({
+        starScreenBuf, starScreenCount, planetScreenBuf, moonScreenPos,
+        constLabelScreen, dsoScreenBuf, data, hipToConst,
+      }),
+    },
+  );
 
   const loadingEl = document.getElementById('loading');
   if (loadingEl) {
