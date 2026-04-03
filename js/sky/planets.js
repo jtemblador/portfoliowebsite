@@ -131,35 +131,62 @@ function helioEcliptic(elems, T) {
  * Compute RA/Dec for all 8 visible planets + Pluto at the given Julian Date.
  * Returns array of { name, ra (hours), dec (degrees), screenR (CSS px) }.
  */
+// Planet absolute magnitudes and phase coefficients (Mallama & Hilton 2018)
+const PLANET_MAG = {
+  Mercury: { V0: -0.36, c1: 0.027, c2: 2.2e-13, pow: 6 },
+  Venus:   { V0: -4.34, c1: 0.013, c2: 4.2e-7,  pow: 3 },
+  Mars:    { V0: -1.51, c1: 0.016, c2: 0,        pow: 0 },
+  Jupiter: { V0: -9.25, c1: 0.014, c2: 0,        pow: 0 },
+  Saturn:  { V0: -9.0,  c1: 0.044, c2: 0,        pow: 0 },
+  Uranus:  { V0: -7.15, c1: 0.001, c2: 0,        pow: 0 },
+  Neptune: { V0: -6.90, c1: 0.001, c2: 0,        pow: 0 },
+  Pluto:   { V0: -1.0,  c1: 0.041, c2: 0,        pow: 0 },
+};
+
+/**
+ * Compute RA/Dec, distance, magnitude, and phase for all planets.
+ * Returns array of { name, ra, dec, screenR, distAU, helioDist, phase, phaseAngle, magnitude }.
+ */
 export function planetPositions(jd) {
   const T = (jd - 2451545.0) / 36525;
 
-  // Heliocentric ecliptic position of Earth (EM Bary)
   const earth = helioEcliptic(ELEMENTS.Earth, T);
+  const earthDist = Math.sqrt(earth.x * earth.x + earth.y * earth.y + earth.z * earth.z);
 
   const results = [];
 
   for (const name of ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto']) {
     const hel = helioEcliptic(ELEMENTS[name], T);
 
-    // Geocentric ecliptic
+    // Distances in AU
+    const r = Math.sqrt(hel.x * hel.x + hel.y * hel.y + hel.z * hel.z); // heliocentric
     const gx = hel.x - earth.x;
     const gy = hel.y - earth.y;
     const gz = hel.z - earth.z;
+    const R = Math.sqrt(gx * gx + gy * gy + gz * gz); // geocentric
 
-    // Rotate ecliptic → equatorial (around X-axis by obliquity ε)
+    // Phase angle: Sun-Planet-Earth triangle
+    const cosPA = (r * r + R * R - earthDist * earthDist) / (2 * r * R);
+    const phaseAngle = Math.acos(Math.max(-1, Math.min(1, cosPA))) * R2D;
+    const phase = (1 + Math.cos(phaseAngle * D2R)) / 2;
+
+    // Apparent magnitude (Mallama & Hilton 2018)
+    const pm = PLANET_MAG[name];
+    let magnitude = pm.V0 + 5 * Math.log10(r * R) + pm.c1 * phaseAngle;
+    if (pm.c2 > 0) magnitude += pm.c2 * Math.pow(phaseAngle, pm.pow);
+
+    // Rotate ecliptic → equatorial
     const eqX = gx;
     const eqY = COS_OBL * gy - SIN_OBL * gz;
     const eqZ = SIN_OBL * gy + COS_OBL * gz;
 
-    // RA in degrees, then convert to hours
     const raDeg = (Math.atan2(eqY, eqX) * R2D + 360) % 360;
     const ra    = raDeg / 15;
     const dec   = Math.atan2(eqZ, Math.sqrt(eqX * eqX + eqY * eqY)) * R2D;
 
     const screenR = DOT_MIN + (DOT_MAX - DOT_MIN) * (PLANET_RADIUS_KM[name] / R_JUPITER_KM);
 
-    results.push({ name, ra, dec, screenR });
+    results.push({ name, ra, dec, screenR, distAU: R, helioDist: r, phase, phaseAngle, magnitude });
   }
 
   return results;
@@ -229,6 +256,11 @@ export function moonPosition(jd) {
   const ra = ((raRad * R2D + 360) % 360) / 15;
   const dec = decRad * R2D;
 
+  // Approximate distance (km) — Meeus Ch.47 simplified (3 largest terms)
+  const distKm = 385001 - 20905 * Math.cos(Mpr) - 3699 * Math.cos(2 * Dr - Mpr)
+               - 2956 * Math.cos(2 * Dr);
+  const distAU = distKm / 149597870.7;
+
   // Elongation (Sun-Moon angle for phase)
   const sun = sunPosition(jd);
   const sunRaR = sun.ra * 15 * D2R, sunDecR = sun.dec * D2R;
@@ -237,5 +269,5 @@ export function moonPosition(jd) {
                  + Math.cos(sunDecR) * Math.cos(moonDecR) * Math.cos(sunRaR - moonRaR);
   const elongation = Math.acos(Math.max(-1, Math.min(1, cosElong))) * R2D;
 
-  return { name: 'Moon', ra, dec, elongation };
+  return { name: 'Moon', ra, dec, elongation, distAU };
 }
