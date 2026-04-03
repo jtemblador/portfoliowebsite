@@ -1248,6 +1248,9 @@ function buildSearchIndex() {
   if (_cachedMoon) searchIndex.push({ name: 'Moon', type: 'moon', ra: _cachedMoon.ra, dec: _cachedMoon.dec });
 }
 
+let _searchMatches = [];   // current search results for arrow nav
+let _searchSelIdx = -1;    // selected index in results (-1 = none)
+
 function openSearch() {
   const panel = document.getElementById('search-panel');
   const input = document.getElementById('search-input');
@@ -1256,6 +1259,8 @@ function openSearch() {
   panel.classList.add('visible');
   input.value = '';
   input.focus();
+  _searchMatches = [];
+  _searchSelIdx = -1;
   updateSearchResults('');
 }
 
@@ -1264,35 +1269,40 @@ function closeSearch() {
   if (!panel) return;
   searchOpen = false;
   panel.classList.remove('visible');
+  _searchMatches = [];
+  _searchSelIdx = -1;
 }
 
 function updateSearchResults(query) {
   const resultsEl = document.getElementById('search-results');
   if (!resultsEl) return;
-  if (!query) { resultsEl.innerHTML = ''; return; }
+  _searchSelIdx = -1;
+  if (!query) { resultsEl.innerHTML = ''; _searchMatches = []; return; }
 
   const q = query.toLowerCase();
-  const matches = searchIndex
+  _searchMatches = searchIndex
     .filter(e => e.name.toLowerCase().includes(q))
     .sort((a, b) => {
-      // Prefer starts-with over contains
       const aStart = a.name.toLowerCase().startsWith(q) ? 0 : 1;
       const bStart = b.name.toLowerCase().startsWith(q) ? 0 : 1;
       return aStart - bStart;
     })
     .slice(0, 8);
 
-  resultsEl.innerHTML = matches.map((m, i) =>
-    `<div class="search-result" data-idx="${i}">` +
-    `<span class="sr-type">${m.type === 'constellation' ? '\u2b50' : m.type === 'planet' ? '\ud83c\udf1f' : m.type === 'moon' ? '\ud83c\udf19' : '\u2022'}</span>` +
+  renderSearchResults(resultsEl);
+}
+
+function renderSearchResults(resultsEl) {
+  resultsEl.innerHTML = _searchMatches.map((m, i) =>
+    `<div class="search-result${i === _searchSelIdx ? ' selected' : ''}" data-idx="${i}">` +
+    `<span class="sr-type">${m.type === 'constellation' ? '*' : m.type === 'planet' ? 'P' : m.type === 'moon' ? 'M' : '.'}</span>` +
     `<span class="sr-name">${m.name}</span>` +
     `<span class="sr-label">${m.type}</span>` +
     `</div>`
   ).join('');
 
-  // Wire click handlers
   resultsEl.querySelectorAll('.search-result').forEach((el, i) => {
-    el.addEventListener('click', () => navigateToResult(matches[i]));
+    el.addEventListener('click', () => navigateToResult(_searchMatches[i]));
   });
 }
 
@@ -1342,11 +1352,42 @@ function setupSearch() {
   input.addEventListener('input', () => updateSearchResults(input.value));
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { closeSearch(); e.stopPropagation(); }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (_searchMatches.length > 0) {
+        _searchSelIdx = Math.min(_searchSelIdx + 1, _searchMatches.length - 1);
+        renderSearchResults(document.getElementById('search-results'));
+      }
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (_searchSelIdx > 0) {
+        _searchSelIdx--;
+        renderSearchResults(document.getElementById('search-results'));
+      }
+    }
     if (e.key === 'Enter') {
-      const first = document.querySelector('.search-result');
-      if (first) first.click();
+      const idx = _searchSelIdx >= 0 ? _searchSelIdx : 0;
+      if (_searchMatches[idx]) navigateToResult(_searchMatches[idx]);
     }
   });
+
+  // Search button
+  const searchBtn = document.getElementById('search-btn');
+  if (searchBtn) searchBtn.addEventListener('click', openSearch);
+
+  // Overlay menu toggle
+  const menuToggle = document.getElementById('menu-toggle');
+  const overlayMenu = document.getElementById('overlay-menu');
+  if (menuToggle && overlayMenu) {
+    menuToggle.addEventListener('click', () => overlayMenu.classList.toggle('visible'));
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!menuToggle.contains(e.target) && !overlayMenu.contains(e.target)) {
+        overlayMenu.classList.remove('visible');
+      }
+    });
+  }
 }
 
 // --- Init ---
