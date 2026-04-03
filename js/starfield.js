@@ -28,6 +28,7 @@ import { buildViewFrame, projectStar, projectHzPoint } from './viewer/camera.js'
 import { findNearestStar, findNearestPlanet, findNearestDSO, findNearestConstLabel } from './viewer/hittest.js';
 import { advanceTime, getTimeState, togglePause, changeSpeed, setupTimeControls } from './viewer/controls.js';
 import { updatePopup } from './viewer/popup.js';
+import { buildSearchIndex, setupSearch, openSearch, closeSearch, isSearchOpen } from './viewer/search.js';
 
 // --- DOM ---
 
@@ -58,9 +59,7 @@ let _lastFrameTime = performance.now();
 // Animated pan
 let viewTarget = null;      // { az, alt } or null — lerp target
 
-// Search
-let searchIndex = [];       // [{ name, type, ra, dec, abbr? }]
-let searchOpen = false;
+// Search managed by viewer/search.js
 
 let cursorPx = -1, cursorPy = -1;
 let W = 0, H = 0, cx = 0, cy = 0;
@@ -896,7 +895,7 @@ function setupInput() {
   // Keyboard shortcuts
   window.addEventListener('keydown', (e) => {
     // Search bar intercepts keys when open
-    if (searchOpen && e.key !== 'Escape') return;
+    if (isSearchOpen() && e.key !== 'Escape') return;
 
     // Grid/overlay toggles
     if (e.key === 'g' || e.key === 'G') { overlays.altAzGrid = !overlays.altAzGrid; syncOverlayButtons(); }
@@ -915,7 +914,7 @@ function setupInput() {
 
     // Search
     if (e.key === '/') { e.preventDefault(); openSearch(); }
-    if (e.key === 'Escape') { if (searchOpen) closeSearch(); else { selectedObject = null; clickedConst = null; } }
+    if (e.key === 'Escape') { if (isSearchOpen()) closeSearch(); else { selectedObject = null; clickedConst = null; } }
 
     // Time controls
     if (e.key === ' ') { e.preventDefault(); togglePause(); }
@@ -985,189 +984,14 @@ function setupInput() {
 
 // Time controls imported from viewer/controls.js
 
-// --- Search ---
+// Search imported from viewer/search.js
 
-function buildSearchIndex() {
-  searchIndex = [];
-  // Constellations
-  for (const c of data.constellations) {
-    searchIndex.push({ name: c.name, type: 'constellation', ra: c.label_ra, dec: c.label_dec, abbr: c.abbr });
-  }
-  // Named stars
-  if (data.star_names) {
-    for (const hipID of Object.keys(data.star_names)) {
-      const info = data.star_names[hipID];
-      const pos = data.hip[hipID];
-      if (pos) searchIndex.push({ name: info.name, type: 'star', ra: pos[0], dec: pos[1], hipID });
-    }
-  }
-  // Planets + Moon (use cached positions)
-  if (_cachedPlanets) {
-    for (const p of _cachedPlanets) searchIndex.push({ name: p.name, type: 'planet', ra: p.ra, dec: p.dec });
-  }
-  if (_cachedMoon) searchIndex.push({ name: 'Moon', type: 'moon', ra: _cachedMoon.ra, dec: _cachedMoon.dec });
-  // DSOs
-  for (const d of data.dsos) {
-    searchIndex.push({ name: d.name, type: 'dso', ra: d.ra, dec: d.dec });
-  }
-}
-
-let _searchMatches = [];   // current search results for arrow nav
-let _searchSelIdx = -1;    // selected index in results (-1 = none)
-
-function openSearch() {
-  const panel = document.getElementById('search-panel');
-  const input = document.getElementById('search-input');
-  if (!panel || !input) return;
-  searchOpen = true;
-  panel.classList.add('visible');
-  input.value = '';
-  input.focus();
-  _searchMatches = [];
-  _searchSelIdx = -1;
-  updateSearchResults('');
-}
-
-function closeSearch() {
-  const panel = document.getElementById('search-panel');
-  if (!panel) return;
-  searchOpen = false;
-  panel.classList.remove('visible');
-  _searchMatches = [];
-  _searchSelIdx = -1;
-}
-
-function updateSearchResults(query) {
-  const resultsEl = document.getElementById('search-results');
-  if (!resultsEl) return;
-  _searchSelIdx = -1;
-  if (!query) { resultsEl.innerHTML = ''; _searchMatches = []; return; }
-
-  const q = query.toLowerCase();
-  _searchMatches = searchIndex
-    .filter(e => e.name.toLowerCase().includes(q))
-    .sort((a, b) => {
-      const aStart = a.name.toLowerCase().startsWith(q) ? 0 : 1;
-      const bStart = b.name.toLowerCase().startsWith(q) ? 0 : 1;
-      return aStart - bStart;
-    })
-    .slice(0, 8);
-
-  renderSearchResults(resultsEl);
-}
-
-function renderSearchResults(resultsEl) {
-  resultsEl.innerHTML = _searchMatches.map((m, i) =>
-    `<div class="search-result${i === _searchSelIdx ? ' selected' : ''}" data-idx="${i}">` +
-    `<span class="sr-type">${m.type === 'constellation' ? '*' : m.type === 'planet' ? 'P' : m.type === 'moon' ? 'M' : '.'}</span>` +
-    `<span class="sr-name">${m.name}</span>` +
-    `<span class="sr-label">${m.type}</span>` +
-    `</div>`
-  ).join('');
-
-  resultsEl.querySelectorAll('.search-result').forEach((el, i) => {
-    el.addEventListener('click', () => navigateToResult(_searchMatches[i]));
-  });
-}
-
-function navigateToResult(result) {
-  closeSearch();
-
-  // Convert RA/Dec to current alt/az for pan target
-  const realNow = Date.now();
-  const jd = (realNow + getTimeState().timeOffsetMs) / 86400000 + 2440587.5;
-  const lstDeg = lst(jd, LON_LA);
-  const hz = eqToHz(result.ra, result.dec, lstDeg, LAT_LA);
-
-  // Clamp target alt to visible range
-  const targetAlt = Math.max(ALT_MIN, Math.min(ALT_MAX, hz.alt));
-  viewTarget = { az: hz.az, alt: targetAlt };
-
-  // Select the object after navigation
-  if (result.type === 'constellation') {
-    clickedConst = result.abbr;
-    selectedObject = null;
-  } else if (result.type === 'star') {
-    const pos = data.hip[result.hipID];
-    if (pos) {
-      selectedObject = { type: 'star', ra: pos[0], dec: pos[1], mag: 0, ci: null, dist: null, spect: null, px: cx, py: cy };
-      for (const s of data.stars) {
-        if (Math.abs(s[0] - pos[0]) < 0.0001 && Math.abs(s[1] - pos[1]) < 0.0001) {
-          selectedObject.mag = s[2]; selectedObject.ci = s[3]; selectedObject.dist = s[4]; selectedObject.spect = s[5]; break;
-        }
-      }
-    }
-    clickedConst = null;
-  } else if (result.type === 'planet') {
-    // Use live cached position (planets move, search index may be stale)
-    const live = _cachedPlanets?.find(p => p.name === result.name);
-    const ra = live?.ra ?? result.ra, dec = live?.dec ?? result.dec;
-    selectedObject = { type: 'planet', name: result.name, ra, dec, px: cx, py: cy };
-    // Re-compute pan target with live position
-    const hzLive = eqToHz(ra, dec, lstDeg, LAT_LA);
-    viewTarget = { az: hzLive.az, alt: Math.max(ALT_MIN, Math.min(ALT_MAX, hzLive.alt)) };
-    clickedConst = null;
-  } else if (result.type === 'moon') {
-    const ra = _cachedMoon?.ra ?? result.ra, dec = _cachedMoon?.dec ?? result.dec;
-    selectedObject = { type: 'moon', name: 'Moon', ra, dec,
-                       illumination: _cachedMoon ? (1 + Math.cos(_cachedMoon.elongation * D2R)) / 2 : 0.5,
-                       elongation: _cachedMoon?.elongation || 0, px: cx, py: cy };
-    const hzLive = eqToHz(ra, dec, lstDeg, LAT_LA);
-    viewTarget = { az: hzLive.az, alt: Math.max(ALT_MIN, Math.min(ALT_MAX, hzLive.alt)) };
-    clickedConst = null;
-  } else if (result.type === 'dso') {
-    selectedObject = { type: 'dso', name: result.name, ra: result.ra, dec: result.dec, px: cx, py: cy };
-    clickedConst = null;
-  }
-}
-
-function setupSearch() {
-  const input = document.getElementById('search-input');
-  if (!input) return;
-  input.addEventListener('input', () => updateSearchResults(input.value));
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeSearch(); e.stopPropagation(); }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (_searchMatches.length > 0) {
-        _searchSelIdx = Math.min(_searchSelIdx + 1, _searchMatches.length - 1);
-        renderSearchResults(document.getElementById('search-results'));
-      }
-    }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (_searchSelIdx > 0) {
-        _searchSelIdx--;
-        renderSearchResults(document.getElementById('search-results'));
-      }
-    }
-    if (e.key === 'Enter') {
-      const idx = _searchSelIdx >= 0 ? _searchSelIdx : 0;
-      if (_searchMatches[idx]) navigateToResult(_searchMatches[idx]);
-    }
-  });
-
-  // Search button (toggle)
-  const searchBtn = document.getElementById('search-btn');
-  if (searchBtn) searchBtn.addEventListener('click', () => {
-    if (searchOpen) closeSearch(); else openSearch();
-  });
-
-  // Click outside search closes it
-  const searchPanel = document.getElementById('search-panel');
-  document.addEventListener('click', (e) => {
-    if (searchOpen && searchBtn && searchPanel &&
-        !searchBtn.contains(e.target) && !searchPanel.contains(e.target)) {
-      closeSearch();
-    }
-  });
-
-  // Overlay menu toggle
+// Overlay menu toggle (stays here — not part of search feature)
+function setupOverlayMenu() {
   const menuToggle = document.getElementById('menu-toggle');
   const overlayMenu = document.getElementById('overlay-menu');
   if (menuToggle && overlayMenu) {
     menuToggle.addEventListener('click', () => overlayMenu.classList.toggle('visible'));
-    // Close menu when clicking outside
     document.addEventListener('click', (e) => {
       if (!menuToggle.contains(e.target) && !overlayMenu.contains(e.target)) {
         overlayMenu.classList.remove('visible');
@@ -1231,9 +1055,15 @@ async function init() {
   // Initialize ephemeris so search index has planet positions
   const initJd = (Date.now() + getTimeState().timeOffsetMs) / 86400000 + 2440587.5;
   updateEphemeris(initJd);
-  buildSearchIndex();
+  buildSearchIndex(data, _cachedPlanets, _cachedMoon);
   setupTimeControls();
-  setupSearch();
+  setupSearch({
+    setViewTarget: (t) => { viewTarget = t; },
+    setSelectedObject: (o) => { selectedObject = o; },
+    setClickedConst: (c) => { clickedConst = c; },
+    getAppState: () => ({ cachedPlanets: _cachedPlanets, cachedMoon: _cachedMoon, data, cx, cy }),
+  });
+  setupOverlayMenu();
 
   setupInput();
   syncOverlayButtons();
