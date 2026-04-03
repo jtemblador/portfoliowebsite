@@ -164,3 +164,78 @@ export function planetPositions(jd) {
 
   return results;
 }
+
+/**
+ * Sun's geocentric equatorial position at the given Julian Date.
+ * Simply the negative of Earth's heliocentric position, rotated to equatorial.
+ */
+export function sunPosition(jd) {
+  const T = (jd - 2451545.0) / 36525;
+  const earth = helioEcliptic(ELEMENTS.Earth, T);
+  const gx = -earth.x, gy = -earth.y, gz = -earth.z;
+  const eqX = gx;
+  const eqY = COS_OBL * gy - SIN_OBL * gz;
+  const eqZ = SIN_OBL * gy + COS_OBL * gz;
+  const raDeg = (Math.atan2(eqY, eqX) * R2D + 360) % 360;
+  return {
+    name: 'Sun',
+    ra: raDeg / 15,
+    dec: Math.atan2(eqZ, Math.sqrt(eqX * eqX + eqY * eqY)) * R2D,
+  };
+}
+
+/**
+ * Moon's geocentric equatorial position using simplified Meeus algorithm.
+ * ~1° accuracy — sufficient for visual rendering (Moon is 0.5° across).
+ * Returns { name, ra, dec, elongation } where elongation is Sun-Moon angle.
+ */
+export function moonPosition(jd) {
+  const T = (jd - 2451545.0) / 36525;
+
+  // Mean elements (degrees)
+  const Lp = 218.3165 + 481267.8813 * T;   // mean longitude
+  const D  = 297.8502 + 445267.1115 * T;   // mean elongation
+  const M  = 357.5291 +  35999.0503 * T;   // Sun's mean anomaly
+  const Mp = 134.9634 + 477198.8676 * T;   // Moon's mean anomaly
+  const F  =  93.2720 + 483202.0175 * T;   // argument of latitude
+
+  const Dr = D * D2R, Mr = M * D2R, Mpr = Mp * D2R, Fr = F * D2R;
+
+  // Ecliptic longitude (6 largest terms)
+  const lon = Lp
+    + 6.289 * Math.sin(Mpr)
+    - 1.274 * Math.sin(2 * Dr - Mpr)
+    + 0.658 * Math.sin(2 * Dr)
+    + 0.214 * Math.sin(2 * Mpr)
+    - 0.186 * Math.sin(Mr)
+    - 0.114 * Math.sin(2 * Fr);
+
+  // Ecliptic latitude (4 largest terms)
+  const lat = 5.128 * Math.sin(Fr)
+    + 0.281 * Math.sin(Mpr + Fr)
+    - 0.278 * Math.sin(Mpr - Fr)
+    - 0.173 * Math.sin(2 * Dr - Fr);
+
+  // Ecliptic → equatorial
+  const lonR = lon * D2R, latR = lat * D2R;
+  const raRad = Math.atan2(
+    Math.sin(lonR) * COS_OBL - Math.tan(latR) * SIN_OBL,
+    Math.cos(lonR)
+  );
+  const decRad = Math.asin(
+    Math.sin(latR) * COS_OBL + Math.cos(latR) * SIN_OBL * Math.sin(lonR)
+  );
+
+  const ra = ((raRad * R2D + 360) % 360) / 15;
+  const dec = decRad * R2D;
+
+  // Elongation (Sun-Moon angle for phase)
+  const sun = sunPosition(jd);
+  const sunRaR = sun.ra * 15 * D2R, sunDecR = sun.dec * D2R;
+  const moonRaR = ra * 15 * D2R, moonDecR = dec * D2R;
+  const cosElong = Math.sin(sunDecR) * Math.sin(moonDecR)
+                 + Math.cos(sunDecR) * Math.cos(moonDecR) * Math.cos(sunRaR - moonRaR);
+  const elongation = Math.acos(Math.max(-1, Math.min(1, cosElong))) * R2D;
+
+  return { name: 'Moon', ra, dec, elongation };
+}
