@@ -73,7 +73,7 @@ export function renderTwilight(rc, lstDeg, cachedSun) {
   const b = depth < 6 ? Math.round(100 + depth * 10) : Math.round(160 * Math.max(0, 1 - (depth-6)/12));
 
   const grad = ctx.createRadialGradient(px, py, 0, px, py, radius);
-  grad.addColorStop(0, `rgba(${r},${g},${b},${(intensity * 0.3).toFixed(3)})`);
+  grad.addColorStop(0, `rgba(${r},${g},${b},${intensity * 0.3})`);
   grad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = grad;
   ctx.beginPath(); ctx.arc(px, py, radius, 0, Math.PI*2); ctx.fill();
