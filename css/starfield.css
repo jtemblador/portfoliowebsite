@@ -22,6 +22,11 @@ body {
   display: block;
 }
 
+/* --- Viewer UI container (hidden until exploration mode) --- */
+
+#viewer-ui { display: none; opacity: 0; transition: opacity 0.3s ease; }
+#viewer-ui.visible { display: block; opacity: 1; }
+
 /* --- Info panel (bottom-left) --- */
 
 #info {
