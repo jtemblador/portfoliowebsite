@@ -147,6 +147,23 @@ function updateInfo() {
     g(overlays.ecliptic, 'E') + ' ' + g(toggles.constellations, 'C');
 }
 
+// --- Ephemeris cache ---
+
+let _cachedPlanets = null;
+let _cachedSun = null;
+let _cachedMoon = null;
+let _lastEphemJD = 0;
+
+function updateEphemeris(jd) {
+  // Math.abs so positions refresh during rewind (negative speed), not just forward
+  if (Math.abs(jd - _lastEphemJD) > 1 / 1440) {
+    _cachedPlanets = planetPositions(jd);
+    _cachedSun = sunPosition(jd);
+    _cachedMoon = moonPosition(jd);
+    _lastEphemJD = jd;
+  }
+}
+
 // --- Main render ---
 
 function render() {
