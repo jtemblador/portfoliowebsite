@@ -194,16 +194,18 @@ function render() {
   const scale = fovToScale(view.fov, Math.min(cx, cy));
   const rc = { ctx, cx, cy, scale, vf, fov: view.fov };
 
-  // Constellation fade animation
+  // Constellation fade animation — hovered and clicked both stay highlighted
   const fadeSpeed = dt / 0.3;
-  const activeAbbr = hoveredConst || clickedConst;
   for (const abbr in constFadeAlphas) {
-    if (abbr === activeAbbr) continue;
+    if (abbr === hoveredConst || abbr === clickedConst) continue;
     constFadeAlphas[abbr] -= fadeSpeed;
     if (constFadeAlphas[abbr] <= 0) delete constFadeAlphas[abbr];
   }
-  if (activeAbbr) {
-    constFadeAlphas[activeAbbr] = Math.min(1, (constFadeAlphas[activeAbbr] || 0) + fadeSpeed);
+  if (hoveredConst) {
+    constFadeAlphas[hoveredConst] = Math.min(1, (constFadeAlphas[hoveredConst] || 0) + fadeSpeed);
+  }
+  if (clickedConst && clickedConst !== hoveredConst) {
+    constFadeAlphas[clickedConst] = Math.min(1, (constFadeAlphas[clickedConst] || 0) + fadeSpeed);
   }
 
   // Lazy-allocate star screen buffer
