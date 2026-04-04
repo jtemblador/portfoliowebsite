@@ -16,13 +16,13 @@
 // --- Astronomy layer (pure math, no DOM) ---
 import { fovToScale }      from './sky/projection.js';
 import { lst }             from './sky/time.js';
-import { planetPositions, sunPosition, moonPosition } from './sky/planets.js';
+// planet ephemeris managed by viewer/controls.js
 
 // --- Viewer modules ---
 import { LON_LA, FOV_DEFAULT, ALT_MIN, ALT_MAX } from './viewer/config.js';
 import { fovMagLimit } from './viewer/visual.js';
 import { buildViewFrame } from './viewer/camera.js';
-import { advanceTime, getTimeState, setupTimeControls } from './viewer/controls.js';
+import { advanceTime, getTimeState, setupTimeControls, updateEphemeris, getCachedPlanets, getCachedSun, getCachedMoon } from './viewer/controls.js';
 import { updatePopup } from './viewer/popup.js';
 import { buildSearchIndex, setupSearch } from './viewer/search.js';
 import { setupInput } from './viewer/input.js';
@@ -92,7 +92,7 @@ function resize() {
 
 function callUpdatePopup() {
   updatePopup(popupEl, selectedObject, clickedConst, {
-    cachedPlanets: _cachedPlanets, cachedMoon: _cachedMoon,
+    cachedPlanets: getCachedPlanets(), cachedMoon: getCachedMoon(),
     constByAbbr, hipToConst, starNameLookup,
     timeOffsetMs: getTimeState().timeOffsetMs,
   });
@@ -220,7 +220,7 @@ function render() {
 
   // Background layers
   renderMilkyWay(rc);
-  renderTwilight(rc, lstDeg, _cachedSun);
+  renderTwilight(rc, lstDeg, getCachedSun());
   if (overlays.altAzGrid) renderAltAzGrid(rc);
   if (overlays.eqGrid) renderEqGrid(rc);
   if (overlays.ecliptic) { renderZodiacBand(rc); renderEcliptic(rc); }
@@ -233,9 +233,9 @@ function render() {
   renderSelection(rc, selectedObject);
   renderHorizon(rc);
   renderCardinals(rc);
-  planetScreenBuf = renderPlanets(rc, _cachedPlanets);
-  renderSun(rc, _cachedSun);
-  moonScreenPos = renderMoon(rc, _cachedMoon, _cachedSun);
+  planetScreenBuf = renderPlanets(rc, getCachedPlanets());
+  renderSun(rc, getCachedSun());
+  moonScreenPos = renderMoon(rc, getCachedMoon(), getCachedSun());
   constLabelScreen = renderLabels(rc, data.constellations, data.dsos, constFadeAlphas, toggles.constellations);
 
   // UI updates
@@ -302,13 +302,13 @@ async function init() {
 
   const initJd = (Date.now() + getTimeState().timeOffsetMs) / 86400000 + 2440587.5;
   updateEphemeris(initJd);
-  buildSearchIndex(data, _cachedPlanets, _cachedMoon);
+  buildSearchIndex(data, getCachedPlanets(), getCachedMoon());
   setupTimeControls();
   setupSearch({
     setViewTarget: (t) => { viewTarget = t; },
     setSelectedObject: (o) => { selectedObject = o; },
     setClickedConst: (c) => { clickedConst = c; },
-    getAppState: () => ({ cachedPlanets: _cachedPlanets, cachedMoon: _cachedMoon, data, cx, cy }),
+    getAppState: () => ({ cachedPlanets: getCachedPlanets(), cachedMoon: getCachedMoon(), data, cx, cy }),
   });
   setupInput(
     { view, drag, overlays, toggles, canvas, getSize: () => ({ W, H }) },
