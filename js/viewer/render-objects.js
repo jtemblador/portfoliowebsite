@@ -40,10 +40,10 @@ function getGlowSprite(rgb) {
  * Render visible stars and fill the screen buffer for hit testing.
  * @returns {number} starScreenCount — number of entries written to screenBuf
  */
-export function renderStars(rc, stars, screenBuf) {
+export function renderStars(rc, stars, screenBuf, portfolioMode) {
   const { ctx, cx, cy, scale, vf, fov } = rc;
   const cullCos = Math.cos((fov / 2 + 25) * D2R);
-  const magLimit = fovMagLimit(fov);
+  const magLimit = portfolioMode ? Math.min(fovMagLimit(fov), 4.8) : fovMagLimit(fov);
   const t = performance.now() * 0.001;
   let count = 0;
 

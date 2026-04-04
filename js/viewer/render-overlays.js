@@ -59,6 +59,8 @@ export function renderConstellationLines(rc, constellations, constFadeAlphas, sh
 
 // --- Constellation highlight rings ---
 
+const _highlightSeen = new Set();
+
 export function renderConstellationHighlight(rc, constFadeAlphas, constByAbbr, hip) {
   const { ctx, cx, cy, scale, vf } = rc;
 
@@ -68,14 +70,14 @@ export function renderConstellationHighlight(rc, constFadeAlphas, constByAbbr, h
     const con = constByAbbr.get(abbr);
     if (!con) continue;
 
-    const seen = new Set();
+    _highlightSeen.clear();
     ctx.strokeStyle = `rgba(100,180,255,${0.8 * ha})`;
     ctx.lineWidth = 1.5;
 
     for (const [h1, h2] of con.lines) {
       for (const h of [h1, h2]) {
-        if (seen.has(h)) continue;
-        seen.add(h);
+        if (_highlightSeen.has(h)) continue;
+        _highlightSeen.add(h);
         const pos = hip[String(h)];
         if (!pos) continue;
         const p = projectStar(pos[0], pos[1], vf);

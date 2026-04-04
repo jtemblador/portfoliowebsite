@@ -70,6 +70,12 @@ export function resetTime() {
   _syncPauseButton();
 }
 
+/** Set speed directly (used by portfolio mode). */
+export function setSpeed(s) {
+  timeSpeed = s;
+  _lastRealTime = Date.now();
+}
+
 // --- Ephemeris cache (recomputed once per minute, not per frame) ---
 
 let _cachedPlanets = null;
