@@ -47,16 +47,17 @@ export function renderStars(rc, stars, screenBuf) {
       );
     }
 
+    // Canvas rgba() accepts raw floats — avoids ~5k toFixed() string allocs/frame
     const rgb = bvToColor(ci);
     ctx.beginPath();
     ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${rgb},${a.toFixed(3)})`;
+    ctx.fillStyle = `rgba(${rgb},${a})`;
     ctx.fill();
 
     if (mag < 2.0 && !p.belowHorizon) {
       const glowR = r * 5;
       const grad = ctx.createRadialGradient(px, py, r * 0.5, px, py, glowR);
-      grad.addColorStop(0, `rgba(${rgb},${(a * 0.35).toFixed(3)})`);
+      grad.addColorStop(0, `rgba(${rgb},${a * 0.35})`);
       grad.addColorStop(1, `rgba(${rgb},0)`);
       ctx.beginPath();
       ctx.arc(px, py, glowR, 0, Math.PI * 2);
@@ -94,37 +95,37 @@ export function renderDSOs(rc, dsos, selectedObject) {
     const b = d.brightness;
 
     if (d.type === 'nebula') {
-      ctx.fillStyle = `rgba(255,180,200,${(b * 0.25).toFixed(3)})`;
+      ctx.fillStyle = `rgba(255,180,200,${b * 0.25})`;
       ctx.beginPath(); ctx.arc(px, py, screenR * 0.4, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = `rgba(200,150,180,${(b * 0.10).toFixed(3)})`;
+      ctx.fillStyle = `rgba(200,150,180,${b * 0.10})`;
       ctx.beginPath(); ctx.arc(px, py, screenR, 0, Math.PI * 2); ctx.fill();
     } else if (d.type === 'galaxy') {
       const angle = (di * 137.508) * D2R;
       ctx.save(); ctx.translate(px, py); ctx.rotate(angle);
-      ctx.fillStyle = `rgba(255,240,200,${(b * 0.20).toFixed(3)})`;
+      ctx.fillStyle = `rgba(255,240,200,${b * 0.20})`;
       ctx.beginPath(); ctx.ellipse(0, 0, screenR * 0.6, screenR * 0.25, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = `rgba(255,230,180,${(b * 0.08).toFixed(3)})`;
+      ctx.fillStyle = `rgba(255,230,180,${b * 0.08})`;
       ctx.beginPath(); ctx.ellipse(0, 0, screenR, screenR * 0.45, 0, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     } else if (d.type === 'open_cluster') {
-      ctx.fillStyle = `rgba(200,220,255,${(b * 0.35).toFixed(3)})`;
+      ctx.fillStyle = `rgba(200,220,255,${b * 0.35})`;
       for (let j = 0; j < 7; j++) {
         const a2 = (j * 137.508 + di * 50) * D2R;
         const r2 = screenR * 0.4 * (0.3 + (j % 3) * 0.35);
         ctx.beginPath(); ctx.arc(px + Math.cos(a2) * r2, py + Math.sin(a2) * r2, 1.5, 0, Math.PI * 2); ctx.fill();
       }
     } else if (d.type === 'globular_cluster') {
-      ctx.fillStyle = `rgba(255,240,210,${(b * 0.35).toFixed(3)})`;
+      ctx.fillStyle = `rgba(255,240,210,${b * 0.35})`;
       ctx.beginPath(); ctx.arc(px, py, screenR * 0.25, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = `rgba(255,230,200,${(b * 0.12).toFixed(3)})`;
+      ctx.fillStyle = `rgba(255,230,200,${b * 0.12})`;
       ctx.beginPath(); ctx.arc(px, py, screenR * 0.6, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = `rgba(240,220,190,${(b * 0.05).toFixed(3)})`;
+      ctx.fillStyle = `rgba(240,220,190,${b * 0.05})`;
       ctx.beginPath(); ctx.arc(px, py, screenR, 0, Math.PI * 2); ctx.fill();
     }
 
     if (selectedObject && selectedObject.type === 'dso' && selectedObject.name === d.name) {
       const pulse = reducedMotion ? 1.0 : 0.7 + 0.3 * Math.sin(performance.now() * 0.003);
-      ctx.strokeStyle = `rgba(180,180,255,${pulse.toFixed(2)})`;
+      ctx.strokeStyle = `rgba(180,180,255,${pulse})`;
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(px, py, screenR + 4, 0, Math.PI * 2); ctx.stroke();
     }
@@ -150,11 +151,11 @@ export function renderSun(rc, sun) {
 
   ctx.beginPath();
   ctx.arc(px, py, sunR, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(255,220,50,${(alpha * 0.95).toFixed(3)})`;
+  ctx.fillStyle = `rgba(255,220,50,${alpha * 0.95})`;
   ctx.fill();
 
   const grad = ctx.createRadialGradient(px, py, sunR, px, py, sunR * 4);
-  grad.addColorStop(0, `rgba(255,200,50,${(alpha * 0.3).toFixed(3)})`);
+  grad.addColorStop(0, `rgba(255,200,50,${alpha * 0.3})`);
   grad.addColorStop(1, 'rgba(255,180,30,0)');
   ctx.beginPath();
   ctx.arc(px, py, sunR * 4, 0, Math.PI * 2);
@@ -164,7 +165,7 @@ export function renderSun(rc, sun) {
   ctx.save();
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.font = '11px sans-serif';
-  ctx.fillStyle = `rgba(255,220,100,${(alpha * 0.85).toFixed(3)})`;
+  ctx.fillStyle = `rgba(255,220,100,${alpha * 0.85})`;
   ctx.fillText('Sun', px, py + sunR + 4);
   ctx.restore();
 }
@@ -191,28 +192,28 @@ export function renderMoon(rc, moon, sun) {
   const shadowSign = eastOfSun ? 1 : -1;
 
   ctx.beginPath(); ctx.arc(px, py, moonR, 0, Math.PI*2);
-  ctx.fillStyle = `rgba(230,230,220,${(alpha * 0.9).toFixed(3)})`;
+  ctx.fillStyle = `rgba(230,230,220,${alpha * 0.9})`;
   ctx.fill();
 
   if (k < 0.98) {
     ctx.save();
     ctx.beginPath(); ctx.arc(px, py, moonR, 0, Math.PI*2); ctx.clip();
     const shadowX = px + moonR * (2 * k - 1) * shadowSign;
-    ctx.fillStyle = `rgba(5,5,16,${(alpha * 0.85).toFixed(3)})`;
+    ctx.fillStyle = `rgba(5,5,16,${alpha * 0.85})`;
     ctx.beginPath(); ctx.arc(shadowX, py, moonR, 0, Math.PI*2); ctx.fill();
     ctx.restore();
   }
 
   ctx.beginPath(); ctx.arc(px, py, moonR * 3, 0, Math.PI*2);
   const grad = ctx.createRadialGradient(px, py, moonR, px, py, moonR*3);
-  grad.addColorStop(0, `rgba(200,200,190,${(alpha*0.15).toFixed(3)})`);
+  grad.addColorStop(0, `rgba(200,200,190,${alpha*0.15})`);
   grad.addColorStop(1, 'rgba(200,200,190,0)');
   ctx.fillStyle = grad; ctx.fill();
 
   ctx.save();
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.font = '11px sans-serif';
-  ctx.fillStyle = `rgba(220,220,210,${(alpha*0.8).toFixed(3)})`;
+  ctx.fillStyle = `rgba(220,220,210,${alpha*0.8})`;
   ctx.fillText('Moon', px, py + moonR + 4);
   ctx.restore();
 
@@ -242,16 +243,16 @@ export function renderPlanets(rc, planets) {
     const r = planet.screenR;
 
     const grad = ctx.createRadialGradient(px, py, 0, px, py, r*2.5);
-    grad.addColorStop(0, `rgba(255,165,0,${(a*0.9).toFixed(3)})`);
-    grad.addColorStop(0.5, `rgba(255,140,0,${(a*0.4).toFixed(3)})`);
+    grad.addColorStop(0, `rgba(255,165,0,${a*0.9})`);
+    grad.addColorStop(0.5, `rgba(255,140,0,${a*0.4})`);
     grad.addColorStop(1, 'rgba(255,120,0,0)');
     ctx.beginPath(); ctx.arc(px, py, r*2.5, 0, Math.PI*2); ctx.fillStyle = grad; ctx.fill();
     ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2);
-    ctx.fillStyle = `rgba(255,180,60,${a.toFixed(3)})`; ctx.fill();
+    ctx.fillStyle = `rgba(255,180,60,${a})`; ctx.fill();
 
     ctx.save();
     ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = '11px sans-serif';
-    ctx.fillStyle = `rgba(255,200,100,${(a*0.85).toFixed(3)})`;
+    ctx.fillStyle = `rgba(255,200,100,${a*0.85})`;
     ctx.fillText(planet.name, px, py + r + 4);
     ctx.restore();
 

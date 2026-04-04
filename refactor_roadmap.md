@@ -231,13 +231,13 @@ battery life, thermal throttle, and scrolling smoothness on weaker devices.
 - [x] Highlighted constellations (1–2 at a time) still need individual style, which is fine
 - [x] **Eliminates ~600 canvas state changes per frame**
 
-### Priority 2: Remove `toFixed()` from star hot loop (~15 min, high impact)
+### Priority 2: Remove `toFixed()` from render hot loops (~15 min, high impact) — DONE
 
-- [ ] `toFixed(3)` called per star per frame — ~5,000 string allocations at 90° FOV
-- [ ] Canvas clamps alpha internally; the precision formatting is unnecessary overhead
-- [ ] Fix: replace `a.toFixed(3)` with a pre-rounded float (`Math.round(a * 1000) / 1000`) or just pass the raw float
-- [ ] Same applies to glow alpha strings (`(a * 0.35).toFixed(3)`)
-- [ ] **Eliminates ~5,000+ string allocations per frame**
+- [x] `toFixed(3)` called per star per frame — ~5,000 string allocations at 90° FOV
+- [x] Canvas clamps alpha internally; the precision formatting is unnecessary overhead
+- [x] Fix: pass raw floats directly in all rgba() strings across all three render modules
+- [x] Also removed from DSOs, Sun, Moon, planets, constellations, labels, cardinals, twilight
+- [x] **Eliminates ~5,000+ string allocations per frame**
 
 ### Priority 3: Pre-render glow sprites (~45 min, medium impact)
 
