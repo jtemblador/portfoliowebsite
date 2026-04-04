@@ -6,7 +6,7 @@
   <title>Star Viewer — Real-Time Night Sky from Los Angeles</title>
   <link rel="stylesheet" href="css/starfield.css">
 </head>
-<body>
+<body class="starfield-standalone">
   <div id="loading">loading full sky catalog...</div>
 
   <canvas id="sky-canvas"></canvas>
@@ -47,6 +47,15 @@
 
   <div id="object-popup"></div>
 
-  <script type="module" src="js/starfield.js"></script>
+  <script type="module">
+    import { init, startRenderer, setPortfolioMode, ensureInputSetup } from './js/starfield.js';
+    setPortfolioMode(false);
+    init().then(() => {
+      ensureInputSetup();
+      startRenderer();
+      const el = document.getElementById('loading');
+      if (el) { el.classList.add('hidden'); setTimeout(() => el.remove(), 800); }
+    });
+  </script>
 </body>
 </html>

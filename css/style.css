@@ -1,6 +1,6 @@
 /* ===== Reset ===== */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-html { scroll-behavior: smooth; background-color: var(--bg-page); font-size: 112%; }
+html { scroll-behavior: smooth; background-color: #050510; font-size: 112%; }
 body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; font-size: 0.875rem; }
 a { text-decoration: none; color: inherit; }
 ul { list-style: none; }
@@ -8,10 +8,10 @@ img { max-width: 100%; display: block; }
 
 /* ===== Theme Variables (Dark = default) ===== */
 :root {
-  --bg-page:       #0a192f;
-  --bg-sidebar:    #11224a;
-  --bg-card:       #112240;
-  --bg-card-hover: #1a2f70;
+  --bg-page:       transparent;
+  --bg-sidebar:    rgba(17, 34, 74, 0.65);
+  --bg-card:       rgba(17, 34, 64, 0.6);
+  --bg-card-hover: rgba(26, 47, 112, 0.65);
   --text-heading:  #ffffff;
   --text-body:     #8892b0;
   --text-sidebar-sub: #ffd787;
@@ -38,6 +38,7 @@ img { max-width: 100%; display: block; }
 
 html[data-theme="light"] {
   color-scheme: light;
+  background-color: #F0DDB8;
   --bg-page:       #F0DDB8;
   --bg-sidebar:    #503328;
   --bg-card:       #E0C898;
@@ -86,19 +87,21 @@ html[data-theme="light"] {
 .page {
   position: relative;
   background-color: var(--bg-page);
-  transition: background-color 0.3s;
+  transition: background-color 0.3s, opacity 0.3s ease;
   min-height: 100vh;
 }
 
-/* Star field canvas */
-#stars {
+/* Star field canvas — starts invisible, fades in over 3s after data loads */
+#sky-canvas {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.8;
+  opacity: 0;
+  transition: opacity 3s ease;  /* ← controls fade-in duration */
 }
-html[data-theme="light"] #stars { opacity: 0; }
+#sky-canvas.visible { opacity: 1; }
+html[data-theme="light"] #sky-canvas { display: none; }
 
 /* Left panel background color */
 .page::before {
@@ -262,12 +265,24 @@ html[data-theme="light"] .sidebar .tagline { color: var(--text-sidebar-sub); }
   display: flex;
   gap: 1rem;
 }
-.socials a {
+.socials a, .socials button {
   color: #8892b0;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
   transition: color 0.2s, transform 0.2s;
 }
-.socials a:hover { color: #ffffff; transform: scale(1.15); }
+.socials a:hover, .socials button:hover { color: #ffffff; transform: scale(1.15); }
 .socials svg { width: 1.5rem; height: 1.5rem; }
+html[data-theme="light"] #explore-btn { display: none; }
+#explore-btn {
+  animation: compass-glow 3s ease-in-out infinite;
+}
+@keyframes compass-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(74, 222, 128, 0.3)); }
+  50% { filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.7)); }
+}
 
 /* ===== Main Content ===== */
 .main-content {
@@ -578,3 +593,29 @@ html[data-theme="light"] .project-links .demo-trigger:hover { color: var(--accen
       0 0 40px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.6);
   }
 }
+
+/* --- Back button (exploration mode, top-right below clock) --- */
+
+#back-btn {
+  position: fixed;
+  top: 4.5rem;
+  right: 0.75rem;
+  z-index: 20;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #777;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+#back-btn:hover { color: #ccc; border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.1); }
+
+/* --- Mode transitions --- */
+
+.page { transition: opacity 0.3s ease; }
+.page.hidden { opacity: 0; pointer-events: none; }
