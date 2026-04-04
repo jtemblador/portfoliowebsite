@@ -277,11 +277,12 @@ html[data-theme="light"] .sidebar .tagline { color: var(--text-sidebar-sub); }
 .socials svg { width: 1.5rem; height: 1.5rem; }
 html[data-theme="light"] #explore-btn { display: none; }
 #explore-btn {
-  animation: compass-glow 3s ease-in-out infinite;
+  color: #4ade80;
+  animation: compass-glow 2.5s ease-in-out infinite;
 }
 @keyframes compass-glow {
-  0%, 100% { filter: drop-shadow(0 0 2px rgba(74, 222, 128, 0.3)); }
-  50% { filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.7)); }
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(74, 222, 128, 0.5)); }
+  50% { filter: drop-shadow(0 0 14px rgba(74, 222, 128, 0.9)); }
 }
 
 /* ===== Main Content ===== */
