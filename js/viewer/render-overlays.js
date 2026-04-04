@@ -42,7 +42,7 @@ export function renderConstellationLines(rc, constellations, constFadeAlphas, sh
     const ha = constFadeAlphas[c.abbr] || 0;
     if (ha <= 0) continue;
     const a = 0.35 + 0.30 * ha;
-    ctx.strokeStyle = `rgba(${Math.round(255 - 155*ha)},${Math.round(255 - 75*ha)},255,${a.toFixed(3)})`;
+    ctx.strokeStyle = `rgba(${Math.round(255 - 155*ha)},${Math.round(255 - 75*ha)},255,${a})`;
     ctx.lineWidth = 1.2 + 1.0 * ha;
     ctx.beginPath();
     for (const seg of c.resolvedLines) {
@@ -69,7 +69,7 @@ export function renderConstellationHighlight(rc, constFadeAlphas, constByAbbr, h
     if (!con) continue;
 
     const seen = new Set();
-    ctx.strokeStyle = `rgba(100,180,255,${(0.8 * ha).toFixed(3)})`;
+    ctx.strokeStyle = `rgba(100,180,255,${0.8 * ha})`;
     ctx.lineWidth = 1.5;
 
     for (const [h1, h2] of con.lines) {
@@ -98,7 +98,7 @@ export function renderSelection(rc, selectedObject) {
   const px = cx + p.x * scale, py = cy - p.y * scale;
   const pulse = reducedMotion ? 1.0 : 0.7 + 0.3 * Math.sin(performance.now() * 0.003);
 
-  ctx.strokeStyle = `rgba(255,220,100,${pulse.toFixed(2)})`;
+  ctx.strokeStyle = `rgba(255,220,100,${pulse})`;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(px, py, 8, 0, Math.PI * 2);
@@ -120,9 +120,9 @@ export function renderCardinals(rc) {
     const alpha = edgeFade(p.cosAngle, fov);
     if (alpha <= 0) continue;
     const px = cx+p.x*scale, py = cy-p.y*scale;
-    ctx.strokeStyle = `rgba(255,255,255,${(0.75*alpha).toFixed(3)})`; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = `rgba(255,255,255,${0.75*alpha})`; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(px, py-7); ctx.lineTo(px, py+7); ctx.stroke();
-    ctx.fillStyle = `rgba(255,255,255,${(0.9*alpha).toFixed(3)})`;
+    ctx.fillStyle = `rgba(255,255,255,${0.9*alpha})`;
     ctx.fillText(label, px, py-10);
   }
 }
@@ -148,7 +148,7 @@ export function renderLabels(rc, constellations, dsos, constFadeAlphas, showCons
       const ha = constFadeAlphas[c.abbr] || 0;
       const r = Math.round(255 - 155 * ha), g = Math.round(255 - 75 * ha);
       const a2 = (0.45 + 0.40 * ha) * alpha;
-      ctx.fillStyle = `rgba(${r},${g},255,${a2.toFixed(3)})`;
+      ctx.fillStyle = `rgba(${r},${g},255,${a2})`;
       ctx.fillText(c.name, px, py - 10);
       labelBuf.push({ abbr: c.abbr, px, py });
     }
@@ -168,7 +168,7 @@ export function renderLabels(rc, constellations, dsos, constFadeAlphas, showCons
     if (!p) continue;
     const alpha = edgeFade(p.cosAngle, fov);
     if (alpha <= 0) continue;
-    ctx.fillStyle = `rgba(180,180,255,${(0.40*alpha).toFixed(3)})`;
+    ctx.fillStyle = `rgba(180,180,255,${0.40*alpha})`;
     ctx.fillText(d.name, cx+p.x*scale, cy-p.y*scale+10);
   }
 
