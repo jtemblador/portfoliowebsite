@@ -239,13 +239,13 @@ battery life, thermal throttle, and scrolling smoothness on weaker devices.
 - [x] Also removed from DSOs, Sun, Moon, planets, constellations, labels, cardinals, twilight
 - [x] **Eliminates ~5,000+ string allocations per frame**
 
-### Priority 3: Pre-render glow sprites (~45 min, medium impact)
+### Priority 3: Pre-render glow sprites (~45 min, medium impact) — DONE
 
-- [ ] `createRadialGradient()` allocates a new CanvasGradient object per bright star per frame
-- [ ] ~20 bright stars + ~9 planets + Sun + Moon = ~30 gradient allocations per frame, all GC'd
-- [ ] Fix: at init, pre-render a unit glow circle for each color band to a small offscreen canvas
-- [ ] At render time, use `drawImage()` at the right position and scale instead of gradient
-- [ ] **Eliminates ~30 CanvasGradient allocations per frame + GC pressure**
+- [x] `createRadialGradient()` allocated a new CanvasGradient object per bright star per frame
+- [x] Fix: glow sprites cached per color in offscreen canvases, drawn with `drawImage()` + `globalAlpha`
+- [x] Sprites created lazily on first use and reused every subsequent frame (~8-10 unique colors)
+- [x] Planets/Sun/Moon gradients left as-is (~11 per frame, not worth the complexity)
+- [x] **Eliminates ~20 CanvasGradient allocations per frame for bright stars**
 
 ### Priority 4: Reduce Milky Way draw calls (~30 min, medium impact)
 

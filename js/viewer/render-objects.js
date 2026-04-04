@@ -11,6 +11,29 @@ import { D2R, BELOW_HORIZON_DIM, MAG_FADE_BAND, reducedMotion } from './config.j
 import { bvToColor, magToRadius, magToAlpha, edgeFade, fovMagLimit } from './visual.js';
 import { projectStar } from './camera.js';
 
+// --- Glow sprite cache ---
+// Pre-rendered radial glow textures keyed by "R,G,B" string.
+// Eliminates ~20 createRadialGradient() calls per frame for bright stars.
+
+const _glowCache = new Map();
+const GLOW_SIZE = 64; // sprite diameter in px
+
+function getGlowSprite(rgb) {
+  let sprite = _glowCache.get(rgb);
+  if (sprite) return sprite;
+  const c = document.createElement('canvas');
+  c.width = GLOW_SIZE; c.height = GLOW_SIZE;
+  const g = c.getContext('2d');
+  const half = GLOW_SIZE / 2;
+  const grad = g.createRadialGradient(half, half, half * 0.1, half, half, half);
+  grad.addColorStop(0, `rgba(${rgb},0.35)`);
+  grad.addColorStop(1, `rgba(${rgb},0)`);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, GLOW_SIZE, GLOW_SIZE);
+  _glowCache.set(rgb, c);
+  return c;
+}
+
 // --- Stars ---
 
 /**
@@ -56,13 +79,10 @@ export function renderStars(rc, stars, screenBuf) {
 
     if (mag < 2.0 && !p.belowHorizon) {
       const glowR = r * 5;
-      const grad = ctx.createRadialGradient(px, py, r * 0.5, px, py, glowR);
-      grad.addColorStop(0, `rgba(${rgb},${a * 0.35})`);
-      grad.addColorStop(1, `rgba(${rgb},0)`);
-      ctx.beginPath();
-      ctx.arc(px, py, glowR, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
+      const sprite = getGlowSprite(rgb);
+      ctx.globalAlpha = a;
+      ctx.drawImage(sprite, px - glowR, py - glowR, glowR * 2, glowR * 2);
+      ctx.globalAlpha = 1;
     }
 
     const bi = count * 3;
