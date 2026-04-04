@@ -156,7 +156,7 @@ export function updatePopup(popupEl, selectedObject, clickedConst, deps) {
 
   } else if (target.type === 'constellation') {
     const con = constByAbbr?.get(target.abbr);
-    const starCount = con ? new Set(con.lines.flat()).size : 0;
+    const starCount = con?.starCount ?? 0;
     html = `<div class="popup-name">${con ? con.name : target.abbr}</div>`
       + `<div class="popup-type">Constellation (${target.abbr})</div>`
       + popupRow('Stars', String(starCount))

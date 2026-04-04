@@ -43,7 +43,7 @@ initStarfield().then(() => {
   _starfieldReady = true;
   if (isDark) {
     startRenderer();
-    canvas.classList.add('visible'); // triggers 3s CSS fade-in
+    requestAnimationFrame(() => canvas.classList.add('visible')); // triggers 3s CSS fade-in
   }
 }).catch((err) => {
   console.warn('Star viewer failed to load:', err);

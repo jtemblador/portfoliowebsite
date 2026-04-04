@@ -22,7 +22,7 @@ import { lst }             from './sky/time.js';
 import { LON_LA, FOV_DEFAULT, ALT_MIN, ALT_MAX } from './viewer/config.js';
 import { fovMagLimit } from './viewer/visual.js';
 import { buildViewFrame } from './viewer/camera.js';
-import { advanceTime, getTimeState, setupTimeControls, updateEphemeris, getCachedPlanets, getCachedSun, getCachedMoon } from './viewer/controls.js';
+import { advanceTime, getTimeState, setupTimeControls, updateEphemeris, getCachedPlanets, getCachedSun, getCachedMoon, setSpeed, resetTime } from './viewer/controls.js';
 import { updatePopup } from './viewer/popup.js';
 import { buildSearchIndex, setupSearch } from './viewer/search.js';
 import { setupInput } from './viewer/input.js';
@@ -141,8 +141,12 @@ function updateClock() {
 
 // --- Info panel ---
 
+let _lastInfoKey = '';
 function updateInfo() {
   if (!infoEl) return;
+  const key = `${view.fov}|${overlays.altAzGrid}|${overlays.eqGrid}|${overlays.ecliptic}|${toggles.constellations}`;
+  if (key === _lastInfoKey) return;
+  _lastInfoKey = key;
   const magLimit = fovMagLimit(view.fov);
   const g = (on, key) => on ? `<span style="color:#4f4">[${key}]</span>` : `<span style="color:#555">[${key}]</span>`;
   infoEl.innerHTML =
@@ -208,7 +212,7 @@ function render() {
   ctx.fillRect(0, 0, W, H);
 
   // Background layers
-  renderMilkyWay(rc);
+  if (!portfolioMode) renderMilkyWay(rc);
   if (!portfolioMode) renderTwilight(rc, lstDeg, getCachedSun());
   if (!portfolioMode && overlays.altAzGrid) renderAltAzGrid(rc);
   if (!portfolioMode && overlays.eqGrid) renderEqGrid(rc);
@@ -217,7 +221,7 @@ function render() {
   // Sky objects (return screen buffers for hit testing)
   if (!portfolioMode) dsoScreenBuf = renderDSOs(rc, data.dsos, selectedObject);
   renderConstellationLines(rc, data.constellations, constFadeAlphas, toggles.constellations);
-  starScreenCount = renderStars(rc, data.stars, starScreenBuf);
+  starScreenCount = renderStars(rc, data.stars, starScreenBuf, portfolioMode);
   if (!portfolioMode) renderConstellationHighlight(rc, constFadeAlphas, constByAbbr, data.hip);
   if (!portfolioMode) renderSelection(rc, selectedObject);
   if (!portfolioMode) renderHorizon(rc);
@@ -235,9 +239,16 @@ function render() {
   }
 }
 
-function frame() {
-  render();
+let _lastRenderTime = 0;
+
+function frame(timestamp) {
   _frameId = requestAnimationFrame(frame);
+  if (portfolioMode) {
+    const interval = getTimeState().timeSpeed > 1 ? 66 : 5000;
+    if (timestamp - _lastRenderTime < interval) return;
+  }
+  _lastRenderTime = timestamp;
+  render();
 }
 
 // --- Init ---
@@ -287,8 +298,12 @@ async function init() {
 
   initMilkyWay(data.milky_way);
   buildStarNameLookup();
+  for (const c of data.constellations) {
+    c.starCount = new Set(c.lines.flat()).size;
+  }
   constByAbbr = new Map(data.constellations.map(c => [c.abbr, c]));
 
+  setSpeed(100); // portfolio mode default: 100x for visible sky motion
   const initJd = (Date.now() + getTimeState().timeOffsetMs) / 86400000 + 2440587.5;
   updateEphemeris(initJd);
   buildSearchIndex(data, getCachedPlanets(), getCachedMoon());
@@ -330,8 +345,10 @@ export function setPortfolioMode(enabled) {
     constFadeAlphas = {};
     viewTarget = null;
     canvas.style.cursor = '';
+    setSpeed(25);
   } else {
     canvas.style.cursor = 'grab';
+    resetTime();
   }
 }
 
