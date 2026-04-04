@@ -204,54 +204,74 @@ No circular dependencies. Strict DAG with starfield.js at the root.
 
 ---
 
-## Things to Delete or Consolidate
+## Cleanup — Delete, Consolidate, or Document
 
-| Item | Action | Reason |
+| Item | Status | Action |
 |------|--------|--------|
-| `projection.js` unused exports (`project`, `toCanvas`, `fromCanvas`) | Add comment, keep | Correct implementations; may be needed for Section 2 |
-| `buildStarNameLookup` in starfield.js | Move to search.js | Only used to build search-related data |
-| `buildMilkyWayPoints` in starfield.js | Move to render-background.js | Init-time preprocessing for that module |
-| `_cachedPlanets/Sun/Moon` + `updateEphemeris` | Move to controls.js | Time-domain cache logic belongs with time management |
-| Duplicate `D2R`/`R2D` in sky modules | Document in config.js | sky/ can't import from viewer/ (wrong direction) — intentional |
-| `milkyWayPoints` module-level var | Encapsulate in render-background.js | Module owns its own init-time data |
+| `buildMilkyWayPoints` in starfield.js | **Done** | Moved to render-background.js as `initMilkyWay()` |
+| `milkyWayPoints` module-level var | **Done** | Encapsulated as module-private in render-background.js |
+| `projection.js` unused exports (`project`, `toCanvas`, `fromCanvas`) | Not done | Delete or add `// Reserved for Section 2` comment. Dead exports signal unmaintained code. |
+| `buildStarNameLookup` in starfield.js | **Stays** | Roadmap originally said "move to search.js" — incorrect. Builds `starNameLookup` (used by popup) and `hipToConst` (used by input hover/click). Serves multiple consumers, not just search. Belongs in the app shell. |
+| `_cachedPlanets/Sun/Moon` + `updateEphemeris` | Not done | Move to controls.js with getter exports. Time-domain cache logic. No perf gain — structural only. |
+| Duplicate `D2R`/`R2D` in sky modules | Not done | Defined in config.js, projection.js, time.js, planets.js (4 copies). Intentional: sky/ can't import from viewer/. Add a comment in config.js explaining this. |
 
 ---
 
 ## Performance Improvements
 
-### During refactor (Phase 3–5)
+Audited against the actual codebase after Phase 5. Ordered by impact-to-effort ratio.
+The star viewer runs as a live portfolio background — per-frame cost directly affects
+battery life, thermal throttle, and scrolling smoothness on weaker devices.
 
-1. **Pre-compute star RGB strings at init**
-   - `bvToColor(ci)` called for every visible star every frame (~9000 LUT lookups/frame)
-   - Build `data.starColors = data.stars.map(s => bvToColor(s[3]))` once at init
-   - In renderStars, use `data.starColors[i]` instead of `bvToColor(ci)`
-   - Eliminates per-frame string formatting in the hot loop
+### Priority 1: Batch constellation line strokes (~20 min, high impact) — DONE
 
-2. **Move ephemeris cache to controls.js**
-   - Consolidates time + ephemeris into one module
-   - Cache invalidation is time-domain logic
+- [x] Non-highlighted constellations (usually 86–87 of 88) share the same stroke style
+- [x] Currently: each segment gets its own `beginPath()`/`stroke()` — ~600 state changes per frame
+- [x] Fix: collect all same-style segments into one `beginPath()` with `moveTo()`/`lineTo()` pairs, then one `stroke()`
+- [x] Highlighted constellations (1–2 at a time) still need individual style, which is fine
+- [x] **Eliminates ~600 canvas state changes per frame**
 
-3. **Batch constellation line rendering**
-   - Non-highlighted constellations share the same stroke style
-   - Batch all their segments into one `beginPath/stroke` call instead of per-segment
+### Priority 2: Remove `toFixed()` from star hot loop (~15 min, high impact)
 
-### Post-refactor (future improvements)
+- [ ] `toFixed(3)` called per star per frame — ~5,000 string allocations at 90° FOV
+- [ ] Canvas clamps alpha internally; the precision formatting is unnecessary overhead
+- [ ] Fix: replace `a.toFixed(3)` with a pre-rounded float (`Math.round(a * 1000) / 1000`) or just pass the raw float
+- [ ] Same applies to glow alpha strings (`(a * 0.35).toFixed(3)`)
+- [ ] **Eliminates ~5,000+ string allocations per frame**
 
-4. **Pre-render glow sprites to offscreen canvas**
-   - `createRadialGradient` for bright stars runs per frame (~20 allocations/frame)
-   - Pre-render a unit-radius glow for each color band, `drawImage` at position
+### Priority 3: Pre-render glow sprites (~45 min, medium impact)
 
-5. **Web Worker for ephemeris computation**
-   - Kepler solver for 9 planets is CPU-intensive (~0.5ms per solve)
-   - Could run in a worker and post results back every minute
+- [ ] `createRadialGradient()` allocates a new CanvasGradient object per bright star per frame
+- [ ] ~20 bright stars + ~9 planets + Sun + Moon = ~30 gradient allocations per frame, all GC'd
+- [ ] Fix: at init, pre-render a unit glow circle for each color band to a small offscreen canvas
+- [ ] At render time, use `drawImage()` at the right position and scale instead of gradient
+- [ ] **Eliminates ~30 CanvasGradient allocations per frame + GC pressure**
 
-6. **Spatial index for star rendering**
-   - At narrow FOV (15°), only a fraction of 15,598 stars are visible
-   - A grid-based spatial index on RA/Dec could skip the per-star projection entirely for off-screen quadrants
+### Priority 4: Reduce Milky Way draw calls (~30 min, medium impact)
 
-7. **Canvas layer separation**
-   - Static layers (Milky Way, grids) could render to an offscreen canvas and composite once
-   - Only re-render when view changes (not every frame for real-time rotation)
+- [ ] Milky Way interpolation produces ~480 translucent circles (n_waypoints × 8 steps × 2 points)
+- [ ] Each drawn at alpha 0.008 — barely visible, but GPU still composites every one
+- [ ] Options: (a) render to offscreen canvas once, composite each frame (redraw on view change),
+      (b) reduce interpolation steps from 8 to 4 (~240 calls), (c) skip on low-power devices
+- [ ] **Eliminates ~240–480 draw calls per frame**
+
+### Priority 5: Dead code cleanup (~5 min each)
+
+- [ ] Delete or comment `project`, `toCanvas`, `fromCanvas` in projection.js — never imported
+- [ ] Add comment in config.js documenting intentional D2R/R2D duplication in sky/ modules
+
+### Priority 6: Structural cleanup (~20 min)
+
+- [ ] Move ephemeris cache (`_cachedPlanets/Sun/Moon`, `updateEphemeris`) to controls.js
+- [ ] Export getters: `getCachedPlanets()`, `getCachedSun()`, `getCachedMoon()`
+- [ ] No performance gain — consolidates all time-domain state in one module
+
+### Not worth doing now
+
+- **Web Worker for ephemeris** — Kepler solver runs once per minute, takes <1ms. Worker message-passing overhead would cost more than it saves.
+- **Spatial index for star rendering** — Stars are sorted by magnitude with early-exit at the mag limit. At 90° FOV only ~5,000 of 15,598 are touched. A spatial index helps at narrow FOVs (15°) but adds complexity for a niche case.
+- **Canvas layer separation** — Compositing two canvases has its own cost (alpha blending, GPU texture upload). The view rotates in real-time so everything redraws anyway. Only worth it if Milky Way + grids become truly static.
+- **Pre-compute star RGB at init** — Original roadmap item. Already done: `bvToColor()` uses a 256-entry LUT built at module load. Each call is an O(1) array index lookup returning a pre-computed string. No action needed.
 
 ---
 
