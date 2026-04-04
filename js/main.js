@@ -1,110 +1,125 @@
-(() => {
-  const html = document.documentElement;
+/**
+ * main.js — Portfolio site controller.
+ *
+ * Theme toggle, nav highlighting, scroll fade-ins, mouse highlight,
+ * and star viewer integration with portfolio/exploration mode toggle.
+ */
 
-  // --- Theme Toggle ---
-  const toggle = document.getElementById('theme-toggle');
-  const iconSun  = document.getElementById('icon-sun');
-  const iconMoon = document.getElementById('icon-moon');
+import { init as initStarfield, startRenderer, stopRenderer, setPortfolioMode, ensureInputSetup } from './starfield.js';
 
-  function applyTheme(dark) {
-    html.setAttribute('data-theme', dark ? 'dark' : 'light');
-    iconSun.style.display  = dark ? 'block' : 'none';
-    iconMoon.style.display = dark ? 'none'  : 'block';
+const html = document.documentElement;
+
+// --- Theme Toggle ---
+
+const toggle = document.getElementById('theme-toggle');
+const iconSun  = document.getElementById('icon-sun');
+const iconMoon = document.getElementById('icon-moon');
+const canvas   = document.getElementById('sky-canvas');
+
+let isDark = true;
+
+function applyTheme(dark) {
+  isDark = dark;
+  html.setAttribute('data-theme', dark ? 'dark' : 'light');
+  iconSun.style.display  = dark ? 'block' : 'none';
+  iconMoon.style.display = dark ? 'none'  : 'block';
+  if (dark) {
+    startRenderer();
+  } else {
+    stopRenderer();
+    if (_explorationMode) exitExploration();
   }
+}
 
-  applyTheme(true); // default dark
+applyTheme(true);
+toggle.addEventListener('click', () => applyTheme(!isDark));
 
-  toggle.addEventListener('click', () => {
-    const isDark = html.getAttribute('data-theme') === 'dark';
-    applyTheme(!isDark);
-  });
+// --- Star Viewer Init ---
 
-  // --- Star Field ---
-  const canvas = document.getElementById('stars');
-  const ctx = canvas.getContext('2d');
-  let stars = [];
-
-  function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+initStarfield().then(() => {
+  startRenderer();
+  const loadingEl = document.getElementById('loading');
+  if (loadingEl) {
+    loadingEl.classList.add('hidden');
+    setTimeout(() => loadingEl.remove(), 800);
   }
+}).catch(() => {
+  const loadingEl = document.getElementById('loading');
+  if (loadingEl) loadingEl.remove();
+});
 
-  function initStars() {
-    stars = [];
-    for (let i = 0; i < 180; i++) {
-      stars.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        r: Math.random() * 1.3 + 0.2,
-        alpha: Math.random() * 0.6 + 0.2,
-        speed: Math.random() * 0.0008 + 0.0003,
-        phase: Math.random() * Math.PI * 2,
-      });
-    }
-  }
+// --- Exploration Mode Toggle ---
 
-  function drawStars(t) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (const s of stars) {
-      const a = s.alpha * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase));
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`;
-      ctx.fill();
-    }
-    requestAnimationFrame(drawStars);
-  }
+const page       = document.querySelector('.page');
+const viewerUI   = document.getElementById('viewer-ui');
+const exploreBtn = document.getElementById('explore-btn');
+const backBtn    = document.getElementById('back-btn');
 
-  resizeCanvas();
-  initStars();
-  requestAnimationFrame(drawStars);
-  window.addEventListener('resize', () => { resizeCanvas(); initStars(); });
+let _explorationMode = false;
 
-  // --- Mouse Highlight ---
-  window.addEventListener('mousemove', (e) => {
-    document.documentElement.style.setProperty('--mouse-x', e.clientX + 'px');
-    document.documentElement.style.setProperty('--mouse-y', e.clientY + 'px');
-  });
+function enterExploration() {
+  _explorationMode = true;
+  ensureInputSetup();
+  setPortfolioMode(false);
+  canvas.style.pointerEvents = 'auto';
+  page.classList.add('hidden');
+  setTimeout(() => { viewerUI.classList.add('visible'); }, 300);
+}
 
-  // --- IntersectionObserver for Nav ---
-  const navLinks = document.querySelectorAll('.sidebar nav a');
+function exitExploration() {
+  _explorationMode = false;
+  setPortfolioMode(true);
+  canvas.style.pointerEvents = 'none';
+  viewerUI.classList.remove('visible');
+  setTimeout(() => { page.classList.remove('hidden'); }, 300);
+}
 
-  const navObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          navLinks.forEach((link) => {
-            link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id);
-          });
-        }
-      });
-    },
-    { threshold: 0.5 }
-  );
+exploreBtn.addEventListener('click', enterExploration);
+backBtn.addEventListener('click', exitExploration);
 
-  document.querySelectorAll('section[id]').forEach((s) => navObserver.observe(s));
+// --- Mouse Highlight ---
 
-  // --- Fade-in on Scroll ---
-  const fadeElements = document.querySelectorAll('.card, .section-text, .arrow-link');
-  fadeElements.forEach((el, i) => {
-    el.classList.add('fade-in');
-    el.style.transitionDelay = (i % 5) * 150 + 'ms';
-  });
+window.addEventListener('mousemove', (e) => {
+  html.style.setProperty('--mouse-x', e.clientX + 'px');
+  html.style.setProperty('--mouse-y', e.clientY + 'px');
+});
 
-  const fadeObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          // Clear the stagger delay after fade-in so it doesn't affect hover transitions
-          const delay = parseFloat(entry.target.style.transitionDelay) || 0;
-          setTimeout(() => { entry.target.style.transitionDelay = ''; }, delay + 600);
-          fadeObserver.unobserve(entry.target);
-        }
-      });
-    },
-    { threshold: 0.1 }
-  );
+// --- IntersectionObserver for Nav ---
 
-  fadeElements.forEach((el) => fadeObserver.observe(el));
-})();
+const navLinks = document.querySelectorAll('.sidebar nav a');
+const navObserver = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        navLinks.forEach((link) => {
+          link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id);
+        });
+      }
+    });
+  },
+  { threshold: 0.5 }
+);
+document.querySelectorAll('section[id]').forEach((s) => navObserver.observe(s));
+
+// --- Fade-in on Scroll ---
+
+const fadeElements = document.querySelectorAll('.card, .section-text, .arrow-link');
+fadeElements.forEach((el, i) => {
+  el.classList.add('fade-in');
+  el.style.transitionDelay = (i % 5) * 150 + 'ms';
+});
+
+const fadeObserver = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        const delay = parseFloat(entry.target.style.transitionDelay) || 0;
+        setTimeout(() => { entry.target.style.transitionDelay = ''; }, delay + 600);
+        fadeObserver.unobserve(entry.target);
+      }
+    });
+  },
+  { threshold: 0.1 }
+);
+fadeElements.forEach((el) => fadeObserver.observe(el));
