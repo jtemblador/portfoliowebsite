@@ -54,25 +54,26 @@ body {
 }
 #loading.hidden { opacity: 0; pointer-events: none; }
 
-/* --- Clock + time controls (bottom-center) --- */
+/* --- Clock panel (top-right) --- */
 
 #clock-panel {
   position: fixed;
-  bottom: 3rem;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 0.75rem;
+  right: 0.75rem;
   z-index: 10;
   background: rgba(0,0,0,0.7);
-  padding: 0.4rem 0.75rem;
-  border-radius: 4px 4px 0 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
   font-size: 0.7rem;
   line-height: 1.6;
   pointer-events: none;
-  text-align: center;
+  text-align: right;
   font-family: monospace;
   color: #aaa;
 }
 #clock-time { font-size: 1.1rem; color: #ccc; }
+
+/* --- Time controls (bottom-center) --- */
 
 #time-controls {
   position: fixed;
