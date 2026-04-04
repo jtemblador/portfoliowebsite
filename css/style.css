@@ -234,7 +234,10 @@ html[data-theme="light"] .sidebar .tagline { color: var(--text-sidebar-sub); }
 }
 .sidebar nav a.active {
   color: var(--accent);
-  animation: glow 1s ease-in-out infinite;
+  text-shadow:
+    0 0 15px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.9),
+    0 0 25px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.7),
+    0 0 35px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.5);
 }
 .sidebar nav a.active::before {
   width: 4rem;
@@ -278,11 +281,22 @@ html[data-theme="light"] .sidebar .tagline { color: var(--text-sidebar-sub); }
 html[data-theme="light"] #explore-btn { display: none; }
 #explore-btn {
   color: #4ade80;
-  animation: compass-glow 2.5s ease-in-out infinite;
+  position: relative;
 }
-@keyframes compass-glow {
-  0%, 100% { filter: drop-shadow(0 0 4px rgba(74, 222, 128, 0.5)); }
-  50% { filter: drop-shadow(0 0 14px rgba(74, 222, 128, 0.9)); }
+#explore-btn::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(74, 222, 128, 0.6) 0%, rgba(74, 222, 128, 0.25) 40%, transparent 70%);
+  animation: star-twinkle 2s ease-in-out infinite;
+  will-change: opacity;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 /* ===== Main Content ===== */
@@ -579,21 +593,6 @@ html[data-theme="light"] .project-links .demo-trigger:hover { color: var(--accen
   .theme-toggle { top: 1rem; right: 1rem; }
 }
 
-/* ===== Glow Animation ===== */
-@keyframes glow {
-  0%, 100% {
-    text-shadow:
-      0 0 10px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.8),
-      0 0 20px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.6),
-      0 0 30px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.4);
-  }
-  50% {
-    text-shadow:
-      0 0 20px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 1),
-      0 0 30px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.8),
-      0 0 40px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.6);
-  }
-}
 
 /* --- Back button (exploration mode, top-right below clock) --- */
 
