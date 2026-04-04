@@ -36,11 +36,17 @@ export function advanceTime() {
 export function togglePause() {
   if (timeSpeed === 0) {
     timeSpeed = _prevTimeSpeed || 1;
-    _lastRealTime = Date.now(); // prevent stale elapsed accumulation on resume
+    _lastRealTime = Date.now();
   } else {
     _prevTimeSpeed = timeSpeed;
     timeSpeed = 0;
   }
+  _syncPauseButton();
+}
+
+function _syncPauseButton() {
+  const btn = document.getElementById('btn-pause');
+  if (btn) btn.textContent = timeSpeed === 0 ? '\u25B6' : '||';
 }
 
 /** Step speed up (dir=1) or down (dir=-1) through SPEED_STEPS. */
@@ -51,6 +57,7 @@ export function changeSpeed(dir) {
   const next = idx + dir;
   if (next >= 0 && next < SPEED_STEPS.length) timeSpeed = SPEED_STEPS[next];
   if (wasPaused && timeSpeed !== 0) _lastRealTime = Date.now();
+  _syncPauseButton();
 }
 
 /** Reset to real-time (speed=1, offset=0). */
@@ -58,6 +65,7 @@ export function resetTime() {
   timeOffsetMs = 0;
   timeSpeed = 1;
   _lastRealTime = Date.now();
+  _syncPauseButton();
 }
 
 /** Wire up the time control DOM buttons. */
