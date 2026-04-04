@@ -23,7 +23,7 @@ body.starfield-standalone {
 
 /* --- Viewer UI container (hidden until exploration mode) --- */
 
-#viewer-ui { display: none; opacity: 0; transition: opacity 0.3s ease; }
+#viewer-ui { display: none; opacity: 0; transition: opacity 0.3s ease; z-index: 30; font-family: monospace; color: #aaa; }
 #viewer-ui.visible { display: block; opacity: 1; }
 
 /* --- Info panel (bottom-left) --- */
@@ -38,6 +38,8 @@ body.starfield-standalone {
   border-radius: 4px;
   font-size: 0.7rem;
   line-height: 1.6;
+  color: #aaa;
+  font-family: monospace;
   pointer-events: none;
 }
 

@@ -32,11 +32,11 @@ import { initMilkyWay, renderMilkyWay, renderTwilight, renderAltAzGrid, renderEq
 import { renderStars, renderDSOs, renderSun, renderMoon, renderPlanets } from './viewer/render-objects.js';
 import { renderConstellationLines, renderConstellationHighlight, renderSelection, renderCardinals, renderLabels } from './viewer/render-overlays.js';
 
-// --- DOM ---
+// --- DOM (may be null if elements aren't in the page yet) ---
 
-const canvas   = document.getElementById('sky-canvas');
-const ctx      = canvas.getContext('2d');
-const infoEl   = document.getElementById('info');
+const canvas      = document.getElementById('sky-canvas');
+const ctx         = canvas ? canvas.getContext('2d') : null;
+const infoEl      = document.getElementById('info');
 const clockTimeEl = document.getElementById('clock-time');
 const clockDateEl = document.getElementById('clock-date');
 const popupEl     = document.getElementById('object-popup');
@@ -142,6 +142,7 @@ function updateClock() {
 // --- Info panel ---
 
 function updateInfo() {
+  if (!infoEl) return;
   const magLimit = fovMagLimit(view.fov);
   const g = (on, key) => on ? `<span style="color:#4f4">[${key}]</span>` : `<span style="color:#555">[${key}]</span>`;
   infoEl.innerHTML =
@@ -154,6 +155,7 @@ function updateInfo() {
 // --- Main render ---
 
 function render() {
+  if (!data || !ctx) return;
   const jd = advanceTime();
   const lstDeg = lst(jd, LON_LA);
   updateEphemeris(jd);
