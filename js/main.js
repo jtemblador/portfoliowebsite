@@ -17,14 +17,17 @@ const iconMoon = document.getElementById('icon-moon');
 const canvas   = document.getElementById('sky-canvas');
 
 let isDark = true;
+let _starfieldReady = false;
 
 function applyTheme(dark) {
   isDark = dark;
   html.setAttribute('data-theme', dark ? 'dark' : 'light');
   iconSun.style.display  = dark ? 'block' : 'none';
   iconMoon.style.display = dark ? 'none'  : 'block';
+  if (!_starfieldReady) return;
   if (dark) {
     startRenderer();
+    canvas.classList.add('visible');
   } else {
     stopRenderer();
     if (_explorationMode) exitExploration();
@@ -37,15 +40,13 @@ toggle.addEventListener('click', () => applyTheme(!isDark));
 // --- Star Viewer Init ---
 
 initStarfield().then(() => {
-  startRenderer();
-  const loadingEl = document.getElementById('loading');
-  if (loadingEl) {
-    loadingEl.classList.add('hidden');
-    setTimeout(() => loadingEl.remove(), 800);
+  _starfieldReady = true;
+  if (isDark) {
+    startRenderer();
+    canvas.classList.add('visible'); // triggers 3s CSS fade-in
   }
-}).catch(() => {
-  const loadingEl = document.getElementById('loading');
-  if (loadingEl) loadingEl.remove();
+}).catch((err) => {
+  console.warn('Star viewer failed to load:', err);
 });
 
 // --- Exploration Mode Toggle ---
@@ -58,6 +59,7 @@ const backBtn    = document.getElementById('back-btn');
 let _explorationMode = false;
 
 function enterExploration() {
+  if (!_starfieldReady) return;
   _explorationMode = true;
   ensureInputSetup();
   setPortfolioMode(false);
