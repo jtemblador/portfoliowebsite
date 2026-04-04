@@ -22,11 +22,12 @@
   <link rel="manifest" href="site.webmanifest">
 
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/starfield.css">
 </head>
 <body>
   <div class="page">
     <!-- Star field -->
-    <canvas id="stars"></canvas>
+    <canvas id="sky-canvas"></canvas>
 
     <!-- Mouse highlight overlay -->
     <div class="mouse-highlight"></div>
@@ -284,8 +285,57 @@
         </div>
       </main>
     </div>
+    <button id="explore-btn" class="explore-btn" title="Explore the sky">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36z"/>
+      </svg>
+    </button>
   </div>
 
-  <script src="js/main.js"></script>
+  <div id="viewer-ui">
+    <div id="info"></div>
+
+    <div id="clock-panel">
+      <div id="clock-time"></div>
+      <div id="clock-date"></div>
+    </div>
+
+    <div id="time-controls">
+      <span id="live-indicator" class="live">LIVE</span>
+      <button id="btn-rewind" title="Rewind">&lt;&lt;</button>
+      <button id="btn-pause" title="Pause/Play (Space)">||</button>
+      <button id="btn-forward" title="Fast Forward">&gt;&gt;</button>
+      <button id="btn-now" title="Return to Now">Now</button>
+      <span id="time-speed"></span>
+    </div>
+
+    <button id="search-btn" class="ctrl-btn" title="Search (/)">Search</button>
+
+    <div id="search-panel">
+      <input id="search-input" type="text" placeholder="Search stars, constellations... (/)" autocomplete="off">
+      <div id="search-results"></div>
+    </div>
+
+    <div id="menu-container">
+      <button id="menu-toggle">Overlays</button>
+      <div id="overlay-menu">
+        <button id="btn-altaz" title="Alt/Az Grid (G)">Alt/Az Grid</button>
+        <button id="btn-eq" title="Equatorial Grid (Q)">Equatorial Grid</button>
+        <button id="btn-ecl" class="active" title="Ecliptic (E)">Ecliptic</button>
+        <button id="btn-const" class="active" title="Constellations (C)">Constellations</button>
+      </div>
+    </div>
+
+    <div id="object-popup"></div>
+
+    <button id="back-btn" class="explore-btn" title="Back to portfolio">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+    </button>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
