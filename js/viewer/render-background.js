@@ -32,7 +32,7 @@ export function initMilkyWay(waypoints) {
       const ra  = 0.5*((2*b.ra)+(-a.ra+c.ra)*t+(2*a.ra-5*b.ra+4*c.ra-d.ra)*t2+(-a.ra+3*b.ra-3*c.ra+d.ra)*t3);
       const dec = 0.5*((2*b.dec)+(-a.dec+c.dec)*t+(2*a.dec-5*b.dec+4*c.dec-d.dec)*t2+(-a.dec+3*b.dec-3*c.dec+d.dec)*t3);
       const w = b.width + (c.width - b.width) * t;
-      const seed = ((i*4+s)*2654435761)>>>0;
+      const seed = ((i * STEPS + s) * 2654435761) >>> 0;
       const rA = ((seed&0xFFFF)/0xFFFF-0.5), rD = (((seed>>>16)&0xFFFF)/0xFFFF-0.5);
       pts.push({ra, dec, width: w*0.5});
       pts.push({ra: ra+rA*w*0.02, dec: dec+rD*w*0.3, width: w*0.3});
