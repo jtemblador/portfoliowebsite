@@ -5,11 +5,10 @@
  * search bar, overlay menu, object popup. Separate from portfolio styles (style.css).
  */
 
-/* --- Base --- */
+/* --- Base (standalone viewer only — portfolio page uses style.css) --- */
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
+body.starfield-standalone {
+  margin: 0; padding: 0; box-sizing: border-box;
   background: #050510;
   overflow: hidden;
   font-family: monospace;
