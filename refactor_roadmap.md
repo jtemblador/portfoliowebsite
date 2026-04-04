@@ -247,24 +247,22 @@ battery life, thermal throttle, and scrolling smoothness on weaker devices.
 - [x] Planets/Sun/Moon gradients left as-is (~11 per frame, not worth the complexity)
 - [x] **Eliminates ~20 CanvasGradient allocations per frame for bright stars**
 
-### Priority 4: Reduce Milky Way draw calls (~30 min, medium impact)
+### Priority 4: Reduce Milky Way draw calls (~30 min, medium impact) — DONE
 
-- [ ] Milky Way interpolation produces ~480 translucent circles (n_waypoints × 8 steps × 2 points)
-- [ ] Each drawn at alpha 0.008 — barely visible, but GPU still composites every one
-- [ ] Options: (a) render to offscreen canvas once, composite each frame (redraw on view change),
-      (b) reduce interpolation steps from 8 to 4 (~240 calls), (c) skip on low-power devices
-- [ ] **Eliminates ~240–480 draw calls per frame**
+- [x] Milky Way interpolation produced ~480 translucent circles (n_waypoints × 8 steps × 2 points)
+- [x] Fix: reduced interpolation steps from 8 to 4, bumped alpha from 0.008 to 0.012 to compensate
+- [x] **Eliminates ~240 draw calls per frame**
 
-### Priority 5: Dead code cleanup (~5 min each)
+### Priority 5: Dead code cleanup (~5 min each) — DONE
 
-- [ ] Delete or comment `project`, `toCanvas`, `fromCanvas` in projection.js — never imported
-- [ ] Add comment in config.js documenting intentional D2R/R2D duplication in sky/ modules
+- [x] Deleted unused `project`, `toCanvas`, `fromCanvas` from projection.js (only `fovToScale` kept)
+- [x] Added comment in config.js documenting intentional D2R/R2D duplication in sky/ modules
 
-### Priority 6: Structural cleanup (~20 min)
+### Priority 6: Structural cleanup (~20 min) — DONE
 
-- [ ] Move ephemeris cache (`_cachedPlanets/Sun/Moon`, `updateEphemeris`) to controls.js
-- [ ] Export getters: `getCachedPlanets()`, `getCachedSun()`, `getCachedMoon()`
-- [ ] No performance gain — consolidates all time-domain state in one module
+- [x] Moved ephemeris cache (`_cachedPlanets/Sun/Moon`, `updateEphemeris`) to controls.js
+- [x] Exported getters: `getCachedPlanets()`, `getCachedSun()`, `getCachedMoon()`
+- [x] All time-domain state now consolidated in one module
 
 ### Not worth doing now
 

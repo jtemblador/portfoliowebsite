@@ -11,7 +11,9 @@ export const LON_LA  = -118.2437;  // degrees east (west is negative)
 export const SIN_LAT = Math.sin(LAT_LA * Math.PI / 180);
 export const COS_LAT = Math.cos(LAT_LA * Math.PI / 180);
 
-// Trig conversion
+// Trig conversion — also defined locally in js/sky/ modules.
+// sky/ can't import from viewer/ (wrong dependency direction), so the
+// duplication is intentional. Keep these in sync if values ever change.
 export const D2R = Math.PI / 180;
 export const R2D = 180 / Math.PI;
 

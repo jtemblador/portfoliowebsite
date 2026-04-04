@@ -1,11 +1,13 @@
 /**
- * controls.js — Time control state machine.
+ * controls.js — Time and ephemeris state machine.
  *
- * Manages simulated time: pause/play, speed steps, and time offset.
- * The render loop reads time state each frame to advance the sky.
+ * Manages simulated time (pause/play, speed, offset) and the ephemeris
+ * cache (planet/Sun/Moon positions recomputed once per minute).
+ * The render loop calls advanceTime() each frame to get the Julian Date.
  */
 
 import { SPEED_STEPS } from './config.js';
+import { planetPositions, sunPosition, moonPosition } from '../sky/planets.js';
 
 // --- Time state ---
 
@@ -67,6 +69,27 @@ export function resetTime() {
   _lastRealTime = Date.now();
   _syncPauseButton();
 }
+
+// --- Ephemeris cache (recomputed once per minute, not per frame) ---
+
+let _cachedPlanets = null;
+let _cachedSun = null;
+let _cachedMoon = null;
+let _lastEphemJD = 0;
+
+/** Update planet/Sun/Moon positions if >1 minute has elapsed. */
+export function updateEphemeris(jd) {
+  if (jd - _lastEphemJD > 1 / 1440) {
+    _cachedPlanets = planetPositions(jd);
+    _cachedSun = sunPosition(jd);
+    _cachedMoon = moonPosition(jd);
+    _lastEphemJD = jd;
+  }
+}
+
+export function getCachedPlanets() { return _cachedPlanets; }
+export function getCachedSun() { return _cachedSun; }
+export function getCachedMoon() { return _cachedMoon; }
 
 /** Wire up the time control DOM buttons. */
 export function setupTimeControls() {
