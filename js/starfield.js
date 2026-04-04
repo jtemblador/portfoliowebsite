@@ -32,11 +32,11 @@ import { initMilkyWay, renderMilkyWay, renderTwilight, renderAltAzGrid, renderEq
 import { renderStars, renderDSOs, renderSun, renderMoon, renderPlanets } from './viewer/render-objects.js';
 import { renderConstellationLines, renderConstellationHighlight, renderSelection, renderCardinals, renderLabels } from './viewer/render-overlays.js';
 
-// --- DOM ---
+// --- DOM (may be null if elements aren't in the page yet) ---
 
-const canvas   = document.getElementById('sky-canvas');
-const ctx      = canvas.getContext('2d');
-const infoEl   = document.getElementById('info');
+const canvas      = document.getElementById('sky-canvas');
+const ctx         = canvas ? canvas.getContext('2d') : null;
+const infoEl      = document.getElementById('info');
 const clockTimeEl = document.getElementById('clock-time');
 const clockDateEl = document.getElementById('clock-date');
 const popupEl     = document.getElementById('object-popup');
@@ -67,6 +67,10 @@ let planetScreenBuf = [];
 let moonScreenPos = null;
 let constLabelScreen = [];
 let dsoScreenBuf = [];
+
+// Portfolio mode: passive background (reduced layers, no interaction)
+let portfolioMode = true;
+let _frameId = null;
 
 // Lookup tables (built at init)
 let starNameLookup = null;
@@ -138,6 +142,7 @@ function updateClock() {
 // --- Info panel ---
 
 function updateInfo() {
+  if (!infoEl) return;
   const magLimit = fovMagLimit(view.fov);
   const g = (on, key) => on ? `<span style="color:#4f4">[${key}]</span>` : `<span style="color:#555">[${key}]</span>`;
   infoEl.innerHTML =
@@ -147,26 +152,10 @@ function updateInfo() {
     g(overlays.ecliptic, 'E') + ' ' + g(toggles.constellations, 'C');
 }
 
-// --- Ephemeris cache ---
-
-let _cachedPlanets = null;
-let _cachedSun = null;
-let _cachedMoon = null;
-let _lastEphemJD = 0;
-
-function updateEphemeris(jd) {
-  // Math.abs so positions refresh during rewind (negative speed), not just forward
-  if (Math.abs(jd - _lastEphemJD) > 1 / 1440) {
-    _cachedPlanets = planetPositions(jd);
-    _cachedSun = sunPosition(jd);
-    _cachedMoon = moonPosition(jd);
-    _lastEphemJD = jd;
-  }
-}
-
 // --- Main render ---
 
 function render() {
+  if (!data || !ctx) return;
   const jd = advanceTime();
   const lstDeg = lst(jd, LON_LA);
   updateEphemeris(jd);
@@ -220,33 +209,35 @@ function render() {
 
   // Background layers
   renderMilkyWay(rc);
-  renderTwilight(rc, lstDeg, getCachedSun());
-  if (overlays.altAzGrid) renderAltAzGrid(rc);
-  if (overlays.eqGrid) renderEqGrid(rc);
-  if (overlays.ecliptic) { renderZodiacBand(rc); renderEcliptic(rc); }
+  if (!portfolioMode) renderTwilight(rc, lstDeg, getCachedSun());
+  if (!portfolioMode && overlays.altAzGrid) renderAltAzGrid(rc);
+  if (!portfolioMode && overlays.eqGrid) renderEqGrid(rc);
+  if (!portfolioMode && overlays.ecliptic) { renderZodiacBand(rc); renderEcliptic(rc); }
 
   // Sky objects (return screen buffers for hit testing)
-  dsoScreenBuf = renderDSOs(rc, data.dsos, selectedObject);
+  if (!portfolioMode) dsoScreenBuf = renderDSOs(rc, data.dsos, selectedObject);
   renderConstellationLines(rc, data.constellations, constFadeAlphas, toggles.constellations);
   starScreenCount = renderStars(rc, data.stars, starScreenBuf);
-  renderConstellationHighlight(rc, constFadeAlphas, constByAbbr, data.hip);
-  renderSelection(rc, selectedObject);
-  renderHorizon(rc);
-  renderCardinals(rc);
+  if (!portfolioMode) renderConstellationHighlight(rc, constFadeAlphas, constByAbbr, data.hip);
+  if (!portfolioMode) renderSelection(rc, selectedObject);
+  if (!portfolioMode) renderHorizon(rc);
+  if (!portfolioMode) renderCardinals(rc);
   planetScreenBuf = renderPlanets(rc, getCachedPlanets());
   renderSun(rc, getCachedSun());
   moonScreenPos = renderMoon(rc, getCachedMoon(), getCachedSun());
-  constLabelScreen = renderLabels(rc, data.constellations, data.dsos, constFadeAlphas, toggles.constellations);
+  if (!portfolioMode) constLabelScreen = renderLabels(rc, data.constellations, data.dsos, constFadeAlphas, toggles.constellations);
 
-  // UI updates
-  updateInfo();
-  updateClock();
-  callUpdatePopup();
+  // UI updates (skip in portfolio mode)
+  if (!portfolioMode) {
+    updateInfo();
+    updateClock();
+    callUpdatePopup();
+  }
 }
 
 function frame() {
   render();
-  requestAnimationFrame(frame);
+  _frameId = requestAnimationFrame(frame);
 }
 
 // --- Init ---
@@ -280,9 +271,7 @@ async function init() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     data = await resp.json();
   } catch (err) {
-    const loadingEl = document.getElementById('loading');
-    if (loadingEl) loadingEl.textContent = `failed to load star catalog: ${err.message}`;
-    return;
+    throw new Error(`failed to load star catalog: ${err.message}`);
   }
 
   data.stars.sort((a, b) => a[2] - b[2]);
@@ -310,6 +299,12 @@ async function init() {
     setClickedConst: (c) => { clickedConst = c; },
     getAppState: () => ({ cachedPlanets: getCachedPlanets(), cachedMoon: getCachedMoon(), data, cx, cy }),
   });
+}
+
+let _inputReady = false;
+function ensureInputSetup() {
+  if (_inputReady) return;
+  _inputReady = true;
   setupInput(
     { view, drag, overlays, toggles, canvas, getSize: () => ({ W, H }) },
     {
@@ -324,18 +319,32 @@ async function init() {
       }),
     },
   );
+}
 
-  const loadingEl = document.getElementById('loading');
-  if (loadingEl) {
-    loadingEl.classList.add('hidden');
-    setTimeout(() => loadingEl.remove(), 800);
+export function setPortfolioMode(enabled) {
+  portfolioMode = enabled;
+  if (enabled) {
+    selectedObject = null;
+    clickedConst = null;
+    hoveredConst = null;
+    constFadeAlphas = {};
+    viewTarget = null;
+    canvas.style.cursor = '';
+  } else {
+    canvas.style.cursor = 'grab';
   }
-
-  frame();
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
+export function isPortfolioMode() {
+  return portfolioMode;
 }
+
+export function startRenderer() {
+  if (!_frameId) frame();
+}
+
+export function stopRenderer() {
+  if (_frameId) { cancelAnimationFrame(_frameId); _frameId = null; }
+}
+
+export { init, ensureInputSetup };
