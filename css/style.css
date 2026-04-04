@@ -91,14 +91,13 @@ html[data-theme="light"] {
 }
 
 /* Star field canvas */
-#stars {
+#sky-canvas {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.8;
 }
-html[data-theme="light"] #stars { opacity: 0; }
+html[data-theme="light"] #sky-canvas { display: none; }
 
 /* Left panel background color */
 .page::before {
@@ -578,3 +577,30 @@ html[data-theme="light"] .project-links .demo-trigger:hover { color: var(--accen
       0 0 40px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.6);
   }
 }
+
+/* --- Explore/Back button (bottom-right) --- */
+
+.explore-btn {
+  position: fixed;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  z-index: 20;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #777;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.explore-btn:hover { color: #ccc; border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.1); }
+html[data-theme="light"] .explore-btn { display: none; }
+
+/* --- Mode transitions --- */
+
+.page { transition: opacity 0.3s ease; }
+.page.hidden { opacity: 0; pointer-events: none; }
