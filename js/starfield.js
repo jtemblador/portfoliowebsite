@@ -155,7 +155,8 @@ let _cachedMoon = null;
 let _lastEphemJD = 0;
 
 function updateEphemeris(jd) {
-  if (jd - _lastEphemJD > 1 / 1440) {
+  // Math.abs so positions refresh during rewind (negative speed), not just forward
+  if (Math.abs(jd - _lastEphemJD) > 1 / 1440) {
     _cachedPlanets = planetPositions(jd);
     _cachedSun = sunPosition(jd);
     _cachedMoon = moonPosition(jd);
