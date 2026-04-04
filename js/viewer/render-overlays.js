@@ -17,29 +17,43 @@ export function renderConstellationLines(rc, constellations, constFadeAlphas, sh
   const { ctx, cx, cy, scale, vf, fov } = rc;
   const cullCos = Math.cos((fov / 2 + 30) * D2R);
 
+  // Batch all non-highlighted constellations into one path — they share
+  // the same stroke style, so one beginPath/stroke replaces ~500-600.
+  if (showConst) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (const c of constellations) {
+      if (constFadeAlphas[c.abbr] > 0) continue;
+      for (const seg of c.resolvedLines) {
+        const p1 = projectStar(seg[0], seg[1], vf);
+        const p2 = projectStar(seg[2], seg[3], vf);
+        if (!p1 || !p2) continue;
+        if (p1.cosAngle < cullCos && p2.cosAngle < cullCos) continue;
+        ctx.moveTo(cx + p1.x * scale, cy - p1.y * scale);
+        ctx.lineTo(cx + p2.x * scale, cy - p2.y * scale);
+      }
+    }
+    ctx.stroke();
+  }
+
+  // Highlighted constellations (1-2 at a time) need individual styles.
   for (const c of constellations) {
     const ha = constFadeAlphas[c.abbr] || 0;
-    if (!showConst && ha <= 0) continue;
-
-    if (ha > 0) {
-      const a = 0.35 + (0.65 - 0.35) * ha;
-      ctx.strokeStyle = `rgba(${Math.round(255 - 155*ha)},${Math.round(255 - 75*ha)},255,${a.toFixed(3)})`;
-      ctx.lineWidth = 1.2 + 1.0 * ha;
-    } else {
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.lineWidth = 1.2;
-    }
-
+    if (ha <= 0) continue;
+    const a = 0.35 + 0.30 * ha;
+    ctx.strokeStyle = `rgba(${Math.round(255 - 155*ha)},${Math.round(255 - 75*ha)},255,${a.toFixed(3)})`;
+    ctx.lineWidth = 1.2 + 1.0 * ha;
+    ctx.beginPath();
     for (const seg of c.resolvedLines) {
       const p1 = projectStar(seg[0], seg[1], vf);
       const p2 = projectStar(seg[2], seg[3], vf);
       if (!p1 || !p2) continue;
       if (p1.cosAngle < cullCos && p2.cosAngle < cullCos) continue;
-      ctx.beginPath();
       ctx.moveTo(cx + p1.x * scale, cy - p1.y * scale);
       ctx.lineTo(cx + p2.x * scale, cy - p2.y * scale);
-      ctx.stroke();
     }
+    ctx.stroke();
   }
 }
 
