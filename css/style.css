@@ -183,7 +183,7 @@ html[data-theme="light"] .sidebar h1 { color: #ffe1a6; }
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.4rem;
   color: var(--accent);
   opacity: 0.85;
 }
@@ -242,6 +242,53 @@ html[data-theme="light"] .sidebar .tagline { color: var(--text-sidebar-sub); }
 .sidebar nav a.active::before {
   width: 4rem;
   background-color: var(--accent);
+}
+
+/* Sidebar location */
+.sidebar-location {
+  font-size: 0.78rem;
+  color: var(--text-body);
+  margin-bottom: 1.5rem;
+  opacity: 0.75;
+}
+
+/* Resume link in sidebar */
+.resume-link {
+  display: inline-block;
+  margin-top: 1.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  transition: color 0.2s, letter-spacing 0.2s;
+}
+.resume-link:hover { color: var(--accent-hover); letter-spacing: 0.12em; }
+html[data-theme="light"] .resume-link { color: var(--accent); }
+
+/* Open to work indicator */
+.open-to-work {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-body);
+  margin-top: 0.5rem;
+  opacity: 0.85;
+}
+.open-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #4ade80;
+  flex-shrink: 0;
+  animation: dot-pulse 2.5s ease-in-out infinite;
+  will-change: opacity;
+}
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 /* Contact email */
