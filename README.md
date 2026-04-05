@@ -12,10 +12,10 @@ I'm a Computer Science student at California State University Dominguez Hills, g
 
 ## Projects
 
-- **OrbitWatch** — Real-time satellite orbit tracker with a custom C++ SGP4 propagation engine, NASA SPICE coordinate transforms, FastAPI backend, and Cesium.js 3D globe
-- **Portfolio + Star Viewer** — This site. Real-time night sky background with 15,598 stars, planetary ephemeris, 88 constellations, and interactive exploration mode
-- **NFL Prediction System** — 40+ CatBoost models predicting player performance, outperforming professional DFS projections
-- **BlackJack Game** — Console-based C++ game with OOP design, dealer AI, and persistent state
+- **OrbitWatch** — Real-time satellite orbit tracker and collision predictor. Custom C++ SGP4 propagation engine compiled via pybind11, full coordinate transform pipeline (TEME → ECEF → geodetic) using NASA SPICE, FastAPI REST backend, and Cesium.js interactive 3D globe. 279 automated tests across 7 files.
+- **NFL Player Performance Prediction System** — 40+ position-specific CatBoost models trained on 109 weeks of NFL data with 50 engineered features. Achieved 4.26 MAE, outperforming professional DFS platforms (industry benchmark: 4.5–5.5).
+- **Portfolio + Star Viewer** — This site. Real-time night sky rendered with 15,598 stars from the HYG v42 catalog, runtime planetary ephemeris via JPL Keplerian elements, 88 IAU constellation overlays, and a full interactive exploration mode — built across 15 ES modules in vanilla JS and Canvas2D.
+- **Crypto Market Trend Predictor** — Binary classification pipeline combining 5 technical indicators (MACD, RSI, Bollinger Bands) with FinBERT sentiment scores from Reddit and X, ingesting live data from Kraken, Reddit, and X APIs.
 
 ## How the Star Viewer Works
 
