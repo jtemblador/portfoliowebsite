@@ -251,7 +251,7 @@ html[data-theme="light"] .sidebar .tagline { color: var(--text-sidebar-sub); }
   margin-bottom: 1.5rem;
   opacity: 0.75;
 }
-html[data-theme="light"] .sidebar-location { color: #ffe1a6; opacity: 0.85; }
+html[data-theme="light"] .sidebar-location { color: #F0DDB8; opacity: 0.85; }
 
 /* Resume link in sidebar */
 .resume-link {
