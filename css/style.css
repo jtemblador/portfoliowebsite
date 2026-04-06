@@ -251,6 +251,7 @@ html[data-theme="light"] .sidebar .tagline { color: var(--text-sidebar-sub); }
   margin-bottom: 1.5rem;
   opacity: 0.75;
 }
+html[data-theme="light"] .sidebar-location { color: #F0DDB8; opacity: 0.85; }
 
 /* Resume link in sidebar */
 .resume-link {
@@ -276,6 +277,7 @@ html[data-theme="light"] .resume-link { color: var(--accent); }
   margin-top: 0.5rem;
   opacity: 0.85;
 }
+html[data-theme="light"] .open-to-work { color: #ffe1a6; opacity: 0.85; }
 .open-dot {
   display: inline-block;
   width: 7px;
