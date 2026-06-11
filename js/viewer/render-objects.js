@@ -8,7 +8,7 @@
  */
 
 import { D2R, BELOW_HORIZON_DIM, MAG_FADE_BAND, reducedMotion } from './config.js';
-import { bvToColor, magToRadius, magToAlpha, edgeFade, fovMagLimit } from './visual.js';
+import { edgeFade, fovMagLimit } from './visual.js';
 import { projectStar } from './camera.js';
 
 // --- Glow sprite cache ---
@@ -49,7 +49,7 @@ export function renderStars(rc, stars, screenBuf, portfolioMode) {
 
   for (let i = 0; i < stars.length; i++) {
     const s = stars[i];
-    const ra = s[0], dec = s[1], mag = s[2], ci = s[3];
+    const ra = s[0], dec = s[1], mag = s[2];
     if (mag > magLimit) break;
 
     const p = projectStar(ra, dec, vf);
@@ -57,8 +57,8 @@ export function renderStars(rc, stars, screenBuf, portfolioMode) {
 
     const px = cx + p.x * scale;
     const py = cy - p.y * scale;
-    const r = magToRadius(mag);
-    let a = magToAlpha(mag) * (p.belowHorizon ? BELOW_HORIZON_DIM : 1.0);
+    const r = s[7];                                   // precomputed radius
+    let a = s[8] * (p.belowHorizon ? BELOW_HORIZON_DIM : 1.0);  // precomputed base alpha
 
     if (mag > magLimit - MAG_FADE_BAND) a *= (magLimit - mag) / MAG_FADE_BAND;
 
@@ -71,7 +71,7 @@ export function renderStars(rc, stars, screenBuf, portfolioMode) {
     }
 
     // Canvas rgba() accepts raw floats — avoids ~5k toFixed() string allocs/frame
-    const rgb = bvToColor(ci);
+    const rgb = s[6];                                 // precomputed color
     ctx.beginPath();
     ctx.arc(px, py, r, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(${rgb},${a})`;

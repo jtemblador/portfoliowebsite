@@ -102,6 +102,8 @@ html[data-theme="light"] {
 }
 #sky-canvas.visible { opacity: 1; }
 html[data-theme="light"] #sky-canvas { display: none; }
+/* During exploration the night sky shows even in light mode */
+html.exploring[data-theme="light"] #sky-canvas { display: block; }
 
 /* Left panel background color */
 .page::before {
@@ -327,9 +329,8 @@ html[data-theme="light"] .open-to-work { color: #ffe1a6; opacity: 0.85; }
 }
 .socials a:hover, .socials button:hover { color: #ffffff; transform: scale(1.15); }
 .socials svg { width: 1.5rem; height: 1.5rem; }
-html[data-theme="light"] #explore-btn { display: none; }
 #explore-btn {
-  color: #4ade80;
+  color: var(--accent);
   position: relative;
 }
 #explore-btn::after {
@@ -337,7 +338,7 @@ html[data-theme="light"] #explore-btn { display: none; }
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(74, 222, 128, 0.6) 0%, rgba(74, 222, 128, 0.25) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.6) 0%, rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.25) 40%, transparent 70%);
   animation: star-twinkle 2s ease-in-out infinite;
   will-change: opacity;
   pointer-events: none;

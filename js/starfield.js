@@ -20,7 +20,7 @@ import { lst }             from './sky/time.js';
 
 // --- Viewer modules ---
 import { LON_LA, FOV_DEFAULT, ALT_MIN, ALT_MAX } from './viewer/config.js';
-import { fovMagLimit } from './viewer/visual.js';
+import { fovMagLimit, bvToColor, magToRadius, magToAlpha } from './viewer/visual.js';
 import { buildViewFrame } from './viewer/camera.js';
 import { advanceTime, getTimeState, setupTimeControls, updateEphemeris, getCachedPlanets, getCachedSun, getCachedMoon, setSpeed, resetTime } from './viewer/controls.js';
 import { updatePopup } from './viewer/popup.js';
@@ -286,6 +286,16 @@ async function init() {
   }
 
   data.stars.sort((a, b) => a[2] - b[2]);
+
+  // Precompute each star's constant visual properties once. Color (from B-V
+  // index) and base radius/alpha (from magnitude) never change, so the render
+  // loop reads these instead of recomputing them every frame.
+  //   s[6] = rgb color string   s[7] = radius   s[8] = base alpha
+  for (const s of data.stars) {
+    s[6] = bvToColor(s[3]);
+    s[7] = magToRadius(s[2]);
+    s[8] = magToAlpha(s[2]);
+  }
 
   for (const c of data.constellations) {
     c.resolvedLines = [];

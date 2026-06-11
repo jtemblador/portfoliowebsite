@@ -61,6 +61,11 @@ let _explorationMode = false;
 function enterExploration() {
   if (!_starfieldReady) return;
   _explorationMode = true;
+  // The star viewer is always the night sky — show it even if the page is in
+  // light mode (where the decorative background canvas is normally hidden).
+  html.classList.add('exploring');
+  startRenderer();
+  canvas.classList.add('visible');
   ensureInputSetup();
   setPortfolioMode(false);
   canvas.style.pointerEvents = 'auto';
@@ -70,14 +75,30 @@ function enterExploration() {
 
 function exitExploration() {
   _explorationMode = false;
+  html.classList.remove('exploring');
   setPortfolioMode(true);
   canvas.style.pointerEvents = 'none';
   viewerUI.classList.remove('visible');
   setTimeout(() => { page.classList.remove('hidden'); }, 300);
+  // Light mode has no decorative starfield — stop the loop and hide the canvas
+  // again now that we've returned from exploration.
+  if (!isDark) {
+    stopRenderer();
+    canvas.classList.remove('visible');
+  }
 }
 
 exploreBtn.addEventListener('click', enterExploration);
 backBtn.addEventListener('click', exitExploration);
+
+// --- Name scrolls back to top ---
+
+const nameHeading = document.querySelector('.sidebar h1');
+if (nameHeading) {
+  nameHeading.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
 
 // --- Mouse Highlight ---
 
