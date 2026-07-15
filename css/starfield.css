@@ -361,6 +361,15 @@ body.starfield-standalone {
   #time-controls button { padding: 0.55rem 0.7rem; font-size: 0.8rem; }
   #menu-toggle, #help-btn, .ctrl-btn { padding: 0.55rem 0.8rem; font-size: 0.75rem; }
 
+  /* Narrow phones: the time bar (LIVE << || >> Now) was riding right up
+     against the screen edges — trim it down so it has real margin. */
+  @media (max-width: 400px) {
+    #time-controls { gap: 0.15rem; padding: 0.25rem 0.35rem; }
+    #time-controls button { padding: 0.4rem 0.4rem; font-size: 0.68rem; min-width: 2rem; }
+    #time-speed { min-width: 1.6rem; font-size: 0.6rem; }
+    #live-indicator { padding: 0.12rem 0.3rem; font-size: 0.55rem; }
+  }
+
   /* Stack Overlays + help above the centered time bar to avoid overlap */
   #menu-container { bottom: 3.6rem; }
   #overlay-menu { bottom: 2.8rem; }
