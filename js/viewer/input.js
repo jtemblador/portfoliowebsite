@@ -56,10 +56,34 @@ function handleClick(clickX, clickY, state, callbacks) {
 function syncOverlayButtons(overlays, toggles) {
   for (const [id, key] of [['btn-altaz', 'altAzGrid'], ['btn-eq', 'eqGrid'], ['btn-ecl', 'ecliptic']]) {
     const el = document.getElementById(id);
-    if (el) el.classList.toggle('active', overlays[key]);
+    if (el) { el.classList.toggle('active', overlays[key]); el.setAttribute('aria-pressed', String(overlays[key])); }
   }
   const btnConst = document.getElementById('btn-const');
-  if (btnConst) btnConst.classList.toggle('active', toggles.constellations);
+  if (btnConst) { btnConst.classList.toggle('active', toggles.constellations); btnConst.setAttribute('aria-pressed', String(toggles.constellations)); }
+}
+
+// --- Help panel ---
+
+function isHelpOpen() {
+  const el = document.getElementById('help-panel');
+  return !!el && el.classList.contains('visible');
+}
+
+function toggleHelp(force) {
+  const el = document.getElementById('help-panel');
+  if (el) el.classList.toggle('visible', force);
+}
+
+function setupHelp() {
+  const btn = document.getElementById('help-btn');
+  if (btn) btn.addEventListener('click', () => toggleHelp());
+  // First visit: show the controls once so newcomers know how to explore
+  try {
+    if (!localStorage.getItem('viewerHelpSeen')) {
+      toggleHelp(true);
+      localStorage.setItem('viewerHelpSeen', '1');
+    }
+  } catch (e) { /* storage may be unavailable (private mode) */ }
 }
 
 // --- Overlay menu toggle ---
@@ -109,7 +133,9 @@ export function setupInput(state, callbacks) {
     drag.prevX = e.clientX; drag.prevY = e.clientY;
     drag.startX = e.clientX; drag.startY = e.clientY;
     drag.startTime = performance.now();
+    drag.vx = 0; drag.vy = 0; drag.lastMoveT = 0;
     callbacks.setViewTarget(null);
+    callbacks.stopInertia();
     canvas.style.cursor = 'grabbing';
   });
 
@@ -147,6 +173,15 @@ export function setupInput(state, callbacks) {
     const nv = applyDragRotation(view.alt, view.az, dx, dy, degPerPx);
     view.alt = nv.alt; view.az = nv.az;
     drag.prevX = e.clientX; drag.prevY = e.clientY;
+
+    // Smoothed pointer velocity (px/s) for release inertia
+    const nowT = performance.now();
+    const dtMs = drag.lastMoveT ? nowT - drag.lastMoveT : 0;
+    if (dtMs > 0 && dtMs < 100) {
+      drag.vx = 0.7 * (dx / dtMs * 1000) + 0.3 * drag.vx;
+      drag.vy = 0.7 * (dy / dtMs * 1000) + 0.3 * drag.vy;
+    }
+    drag.lastMoveT = nowT;
   });
 
   window.addEventListener('mouseup', (e) => {
@@ -159,18 +194,22 @@ export function setupInput(state, callbacks) {
       const dt = performance.now() - drag.startTime;
       if (Math.abs(dx) < 5 && Math.abs(dy) < 5 && dt < 300) {
         handleClick(e.clientX, e.clientY, state, callbacks);
+      } else if (performance.now() - drag.lastMoveT < 80 &&
+                 Math.hypot(drag.vx, drag.vy) > 150) {
+        // Fling: pointer was still moving at release — carry the momentum
+        callbacks.startInertia(drag.vx, drag.vy);
       }
     }
   });
 
-  // --- Wheel zoom ---
+  // --- Wheel zoom (anchored on the cursor) ---
 
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     let delta = e.deltaY;
     if (e.deltaMode === 1) delta *= 30;
     if (e.deltaMode === 2) delta *= 300;
-    view.fov = Math.max(FOV_MIN, Math.min(FOV_MAX, view.fov * Math.pow(1.0003, delta)));
+    callbacks.applyZoom(e.clientX, e.clientY, view.fov * Math.pow(1.0003, delta));
   }, { passive: false });
 
   // --- Keyboard ---
@@ -193,9 +232,12 @@ export function setupInput(state, callbacks) {
     if (e.key === '-') view.fov = Math.min(FOV_MAX, view.fov * 1.05);
 
     if (e.key === '/') { e.preventDefault(); openSearch(); }
+    if (e.key === '?') { e.preventDefault(); toggleHelp(); }
     if (e.key === 'Escape') {
-      // Precedence: close search → clear selection → exit the viewer
-      if (isSearchOpen()) {
+      // Precedence: close help → close search → clear selection → exit
+      if (isHelpOpen()) {
+        toggleHelp(false);
+      } else if (isSearchOpen()) {
         closeSearch();
       } else if (callbacks.hasSelection()) {
         callbacks.setSelectedObject(null); callbacks.setClickedConst(null);
@@ -221,14 +263,17 @@ export function setupInput(state, callbacks) {
 
   let lastTouchDist = null, lastTouchX = null, lastTouchY = null;
   let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+  let touchVx = 0, touchVy = 0, lastTouchMoveT = 0;
 
   canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
+    callbacks.stopInertia();
     if (e.touches.length === 1) {
       lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
       touchStartX = lastTouchX; touchStartY = lastTouchY;
       touchStartTime = performance.now();
       lastTouchDist = null;
+      touchVx = 0; touchVy = 0; lastTouchMoveT = 0;
     } else if (e.touches.length === 2) {
       lastTouchDist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
@@ -247,12 +292,23 @@ export function setupInput(state, callbacks) {
       const nv = applyDragRotation(view.alt, view.az, dx, dy, degPerPx);
       view.alt = nv.alt; view.az = nv.az;
       lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+
+      const nowT = performance.now();
+      const dtMs = lastTouchMoveT ? nowT - lastTouchMoveT : 0;
+      if (dtMs > 0 && dtMs < 100) {
+        touchVx = 0.7 * (dx / dtMs * 1000) + 0.3 * touchVx;
+        touchVy = 0.7 * (dy / dtMs * 1000) + 0.3 * touchVy;
+      }
+      lastTouchMoveT = nowT;
     } else if (e.touches.length === 2 && lastTouchDist !== null) {
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY,
       );
-      view.fov = Math.max(FOV_MIN, Math.min(FOV_MAX, view.fov * lastTouchDist / dist));
+      // Anchor the zoom on the pinch midpoint
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      callbacks.applyZoom(midX, midY, view.fov * lastTouchDist / dist);
       lastTouchDist = dist;
     }
   }, { passive: false });
@@ -263,12 +319,16 @@ export function setupInput(state, callbacks) {
       // Pinch → single-finger pan: reseed from the remaining finger so the
       // next touchmove doesn't jump from a stale pre-pinch position.
       lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+      touchVx = 0; touchVy = 0; lastTouchMoveT = 0;
     }
     if (e.touches.length < 1) {
       const dx = lastTouchX - touchStartX, dy = lastTouchY - touchStartY;
       const dt = performance.now() - touchStartTime;
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) {
+      if (touchStartTime && Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) {
         handleClick(touchStartX, touchStartY, state, callbacks);
+      } else if (performance.now() - lastTouchMoveT < 80 &&
+                 Math.hypot(touchVx, touchVy) > 150) {
+        callbacks.startInertia(touchVx, touchVy);
       }
       lastTouchX = null; lastTouchY = null;
     }
@@ -277,12 +337,14 @@ export function setupInput(state, callbacks) {
   canvas.addEventListener('touchcancel', () => {
     // An interrupted gesture (system UI, notification) must not leave stale state
     lastTouchDist = null; lastTouchX = null; lastTouchY = null;
+    touchVx = 0; touchVy = 0;
   });
 
   window.addEventListener('resize', callbacks.onResize);
 
-  // --- Overlay menu ---
+  // --- Overlay menu + help ---
   setupOverlayMenu();
+  setupHelp();
 
   // Initial button state
   syncOverlayButtons(overlays, toggles);

@@ -57,7 +57,10 @@ function enterExploration() {
   setPortfolioMode(false);
   canvas.style.pointerEvents = 'auto';
   page.classList.add('hidden');
-  setTimeout(() => { viewerUI.classList.add('visible'); }, 300);
+  setTimeout(() => {
+    viewerUI.classList.add('visible');
+    backBtn.focus(); // move keyboard focus into the viewer
+  }, 300);
 }
 
 function exitExploration() {
@@ -67,7 +70,10 @@ function exitExploration() {
   armBgSleepTimer();
   canvas.style.pointerEvents = 'none';
   viewerUI.classList.remove('visible');
-  setTimeout(() => { page.classList.remove('hidden'); }, 300);
+  setTimeout(() => {
+    page.classList.remove('hidden');
+    exploreBtn.focus(); // return keyboard focus to where exploration began
+  }, 300);
 }
 
 exploreBtn.addEventListener('click', enterExploration);
