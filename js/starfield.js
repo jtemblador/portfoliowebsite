@@ -244,12 +244,13 @@ let _lastRenderTime = 0;
 function frame(timestamp) {
   _frameId = requestAnimationFrame(frame);
   if (portfolioMode && _lastRenderTime) {
-    // Decorative background only: the sky drifts slowly enough that ~1 fps
-    // is visually identical to a faster cadence at a fraction of the CPU
-    // cost. Reduced-motion users keep a static first frame. Exploration
-    // mode is untouched — it renders at full rAF rate for smooth input.
+    // Decorative background only: 10 fps keeps the slow sky drift and star
+    // twinkle moving in sub-pixel steps (smooth to the eye) while doing a
+    // third of the frame work of the old 15 fps — and each frame is itself
+    // cheap (see renderStars). Reduced-motion users keep a static first
+    // frame. Exploration mode renders at full rAF rate for smooth input.
     if (reducedMotion) return;
-    if (timestamp - _lastRenderTime < 1000) return;
+    if (timestamp - _lastRenderTime < 100) return;
   }
   _lastRenderTime = timestamp;
   render();
@@ -294,11 +295,14 @@ async function init() {
   // Precompute each star's constant visual properties once. Color (from B-V
   // index) and base radius/alpha (from magnitude) never change, so the render
   // loop reads these instead of recomputing them every frame.
-  //   s[6] = rgb color string   s[7] = radius   s[8] = base alpha
+  //   s[6] = "r,g,b" string   s[7] = radius   s[8] = base alpha
+  //   s[9] = full canvas fillStyle — paired with globalAlpha, this makes the
+  //          star loop allocation-free (no rgba template string per star)
   for (const s of data.stars) {
     s[6] = bvToColor(s[3]);
     s[7] = magToRadius(s[2]);
     s[8] = magToAlpha(s[2]);
+    s[9] = `rgb(${s[6]})`;
   }
 
   for (const c of data.constellations) {
