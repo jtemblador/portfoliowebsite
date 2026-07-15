@@ -150,7 +150,7 @@ function updateInfo() {
   const magLimit = fovMagLimit(view.fov);
   const g = (on, key) => on ? `<span style="color:#4f4">[${key}]</span>` : `<span style="color:#555">[${key}]</span>`;
   infoEl.innerHTML =
-    `<b>Star Viewer — Fontana, CA</b><br>` +
+    `<b>Fontana, CA</b><br>` +
     `FOV: ${view.fov.toFixed(1)}° | Mag: ${magLimit.toFixed(1)}<br>` +
     g(overlays.altAzGrid, 'G') + ' ' + g(overlays.eqGrid, 'Q') + ' ' +
     g(overlays.ecliptic, 'E') + ' ' + g(toggles.constellations, 'C');
