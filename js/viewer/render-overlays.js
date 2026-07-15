@@ -9,9 +9,19 @@
 
 import { D2R, CARDINALS, reducedMotion } from './config.js';
 import { edgeFade } from './visual.js';
-import { projectStar, projectHzPoint } from './camera.js';
+import { projectStar, projectStarPre, projectHzPoint } from './camera.js';
 
 // --- Constellation lines ---
+
+// Segment endpoints are held simultaneously, so they need their own scratch
+// objects (the shared camera.js scratch would be overwritten by the 2nd call).
+const _p1 = { x: 0, y: 0, cosAngle: 0, belowHorizon: false };
+const _p2 = { x: 0, y: 0, cosAngle: 0, belowHorizon: false };
+
+// Segments are culled only when BOTH endpoints are outside the FOV, so the
+// projection itself can't cull-first — pass an always-pass threshold and
+// apply the two-endpoint test after.
+const NO_CULL = -2;
 
 export function renderConstellationLines(rc, constellations, constFadeAlphas, showConst) {
   const { ctx, cx, cy, scale, vf, fov } = rc;
@@ -26,8 +36,8 @@ export function renderConstellationLines(rc, constellations, constFadeAlphas, sh
     for (const c of constellations) {
       if (constFadeAlphas[c.abbr] > 0) continue;
       for (const seg of c.resolvedLines) {
-        const p1 = projectStar(seg[0], seg[1], vf);
-        const p2 = projectStar(seg[2], seg[3], vf);
+        const p1 = projectStarPre(seg[0], seg[1], seg[2], vf, NO_CULL, _p1);
+        const p2 = projectStarPre(seg[3], seg[4], seg[5], vf, NO_CULL, _p2);
         if (!p1 || !p2) continue;
         if (p1.cosAngle < cullCos && p2.cosAngle < cullCos) continue;
         ctx.moveTo(cx + p1.x * scale, cy - p1.y * scale);
@@ -46,8 +56,8 @@ export function renderConstellationLines(rc, constellations, constFadeAlphas, sh
     ctx.lineWidth = 1.2 + 1.0 * ha;
     ctx.beginPath();
     for (const seg of c.resolvedLines) {
-      const p1 = projectStar(seg[0], seg[1], vf);
-      const p2 = projectStar(seg[2], seg[3], vf);
+      const p1 = projectStarPre(seg[0], seg[1], seg[2], vf, NO_CULL, _p1);
+      const p2 = projectStarPre(seg[3], seg[4], seg[5], vf, NO_CULL, _p2);
       if (!p1 || !p2) continue;
       if (p1.cosAngle < cullCos && p2.cosAngle < cullCos) continue;
       ctx.moveTo(cx + p1.x * scale, cy - p1.y * scale);

@@ -9,7 +9,7 @@
 
 import { D2R, BELOW_HORIZON_DIM, MAG_FADE_BAND, reducedMotion } from './config.js';
 import { edgeFade, fovMagLimit } from './visual.js';
-import { projectStar } from './camera.js';
+import { projectStar, projectStarPre } from './camera.js';
 
 // --- Glow sprite cache ---
 // Pre-rendered radial glow textures keyed by "R,G,B" string.
@@ -34,6 +34,21 @@ function getGlowSprite(rgb) {
   return c;
 }
 
+// Pre-rendered glow sprites for Sun / Moon / planets — replaces per-frame
+// createRadialGradient calls. Baked at relative alpha; drawn via globalAlpha.
+function makeRadialSprite(size, innerRatio, stops) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const half = size / 2;
+  const grad = g.createRadialGradient(half, half, half * innerRatio, half, half, half);
+  for (const [t, color] of stops) grad.addColorStop(t, color);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+  return c;
+}
+let _sunGlow = null, _moonGlow = null, _planetGlow = null;
+
 // --- Stars ---
 
 /**
@@ -49,11 +64,12 @@ export function renderStars(rc, stars, screenBuf, portfolioMode) {
 
   for (let i = 0; i < stars.length; i++) {
     const s = stars[i];
-    const ra = s[0], dec = s[1], mag = s[2];
+    const mag = s[2];
     if (mag > magLimit) break;
 
-    const p = projectStar(ra, dec, vf);
-    if (!p || p.cosAngle < cullCos) continue;
+    // Zero-trig projection from precomputed terms; culls before dividing
+    const p = projectStarPre(s[10], s[11], s[12], vf, cullCos);
+    if (!p) continue;
 
     const px = cx + p.x * scale;
     const py = cy - p.y * scale;
@@ -179,13 +195,12 @@ export function renderSun(rc, sun) {
   ctx.fillStyle = `rgba(255,220,50,${alpha * 0.95})`;
   ctx.fill();
 
-  const grad = ctx.createRadialGradient(px, py, sunR, px, py, sunR * 4);
-  grad.addColorStop(0, `rgba(255,200,50,${alpha * 0.3})`);
-  grad.addColorStop(1, 'rgba(255,180,30,0)');
-  ctx.beginPath();
-  ctx.arc(px, py, sunR * 4, 0, Math.PI * 2);
-  ctx.fillStyle = grad;
-  ctx.fill();
+  if (!_sunGlow) _sunGlow = makeRadialSprite(96, 0.25,
+    [[0, 'rgba(255,200,50,0.3)'], [1, 'rgba(255,180,30,0)']]);
+  const sunGlowR = sunR * 4;
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(_sunGlow, px - sunGlowR, py - sunGlowR, sunGlowR * 2, sunGlowR * 2);
+  ctx.globalAlpha = 1;
 
   ctx.save();
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -229,11 +244,12 @@ export function renderMoon(rc, moon, sun) {
     ctx.restore();
   }
 
-  ctx.beginPath(); ctx.arc(px, py, moonR * 3, 0, Math.PI*2);
-  const grad = ctx.createRadialGradient(px, py, moonR, px, py, moonR*3);
-  grad.addColorStop(0, `rgba(200,200,190,${alpha*0.15})`);
-  grad.addColorStop(1, 'rgba(200,200,190,0)');
-  ctx.fillStyle = grad; ctx.fill();
+  if (!_moonGlow) _moonGlow = makeRadialSprite(64, 1 / 3,
+    [[0, 'rgba(200,200,190,0.15)'], [1, 'rgba(200,200,190,0)']]);
+  const moonGlowR = moonR * 3;
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(_moonGlow, px - moonGlowR, py - moonGlowR, moonGlowR * 2, moonGlowR * 2);
+  ctx.globalAlpha = 1;
 
   ctx.save();
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -267,13 +283,14 @@ export function renderPlanets(rc, planets) {
     const px = cx + p.x * scale, py = cy - p.y * scale;
     const r = planet.screenR;
 
-    const grad = ctx.createRadialGradient(px, py, 0, px, py, r*2.5);
-    grad.addColorStop(0, `rgba(255,165,0,${a*0.9})`);
-    grad.addColorStop(0.5, `rgba(255,140,0,${a*0.4})`);
-    grad.addColorStop(1, 'rgba(255,120,0,0)');
-    ctx.beginPath(); ctx.arc(px, py, r*2.5, 0, Math.PI*2); ctx.fillStyle = grad; ctx.fill();
-    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2);
-    ctx.fillStyle = `rgba(255,180,60,${a})`; ctx.fill();
+    if (!_planetGlow) _planetGlow = makeRadialSprite(64, 0,
+      [[0, 'rgba(255,165,0,0.9)'], [0.5, 'rgba(255,140,0,0.4)'], [1, 'rgba(255,120,0,0)']]);
+    const glowR = r * 2.5;
+    ctx.globalAlpha = a;
+    ctx.drawImage(_planetGlow, px - glowR, py - glowR, glowR * 2, glowR * 2);
+    ctx.fillStyle = 'rgb(255,180,60)';
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
 
     ctx.save();
     ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = '11px sans-serif';

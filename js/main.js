@@ -72,6 +72,8 @@ function exitExploration() {
 
 exploreBtn.addEventListener('click', enterExploration);
 backBtn.addEventListener('click', exitExploration);
+// Fired by the viewer's Escape handler (input.js) — keyboard path out of exploration
+window.addEventListener('viewer-exit', () => { if (_explorationMode) exitExploration(); });
 
 // --- Name scrolls back to top ---
 

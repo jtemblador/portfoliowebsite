@@ -134,6 +134,7 @@ export function setupInput(state, callbacks) {
   }
 
   window.addEventListener('mousemove', (e) => {
+    if (!callbacks.isViewerActive()) return; // portfolio page: leave the mouse alone
     if (!drag.active) {
       hoverX = e.clientX; hoverY = e.clientY;
       if (!hoverRaf) hoverRaf = requestAnimationFrame(hoverScan);
@@ -175,6 +176,7 @@ export function setupInput(state, callbacks) {
   // --- Keyboard ---
 
   window.addEventListener('keydown', (e) => {
+    if (!callbacks.isViewerActive()) return; // portfolio page: don't hijack keys
     if (isSearchOpen() && e.key !== 'Escape') return;
 
     if (e.key === 'g' || e.key === 'G') { overlays.altAzGrid = !overlays.altAzGrid; syncOverlayButtons(overlays, toggles); }
@@ -191,7 +193,16 @@ export function setupInput(state, callbacks) {
     if (e.key === '-') view.fov = Math.min(FOV_MAX, view.fov * 1.05);
 
     if (e.key === '/') { e.preventDefault(); openSearch(); }
-    if (e.key === 'Escape') { if (isSearchOpen()) closeSearch(); else { callbacks.setSelectedObject(null); callbacks.setClickedConst(null); } }
+    if (e.key === 'Escape') {
+      // Precedence: close search → clear selection → exit the viewer
+      if (isSearchOpen()) {
+        closeSearch();
+      } else if (callbacks.hasSelection()) {
+        callbacks.setSelectedObject(null); callbacks.setClickedConst(null);
+      } else {
+        window.dispatchEvent(new CustomEvent('viewer-exit'));
+      }
+    }
 
     if (e.key === ' ') { e.preventDefault(); togglePause(); }
   });
