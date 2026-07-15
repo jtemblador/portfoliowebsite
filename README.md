@@ -2,6 +2,8 @@
 
 Live at [josetemblador.com](https://josetemblador.com).
 
+![Portfolio site — a real-time night-sky star viewer renders behind the project cards](assets/og-preview.png)
+
 I'm a Computer Science graduate of California State University Dominguez Hills (May 2026). I like building things from scratch and understanding how they work under the hood. I'm currently looking for full-time roles in software and ML engineering.
 
 ## What's Here

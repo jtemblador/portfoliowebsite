@@ -113,20 +113,30 @@ export function setupInput(state, callbacks) {
     canvas.style.cursor = 'grabbing';
   });
 
+  // Hover hit-testing scans every on-screen star, and mousemove fires far
+  // more often than the screen repaints — throttle to one scan per frame.
+  let hoverRaf = 0, hoverX = 0, hoverY = 0;
+
+  function hoverScan() {
+    hoverRaf = 0;
+    const { starScreenBuf, starScreenCount, constLabelScreen, data, hipToConst } = callbacks.getScreenState();
+    let found = null;
+    const nearStar = findNearestStar(hoverX, hoverY, 20, starScreenBuf, starScreenCount, data.stars);
+    if (nearStar && hipToConst) {
+      const key = nearStar.ra.toFixed(6) + ',' + nearStar.dec.toFixed(5);
+      found = hipToConst.get(key) || null;
+    }
+    if (!found) {
+      const cl = findNearestConstLabel(hoverX, hoverY, 50, constLabelScreen);
+      found = cl ? cl.abbr : null;
+    }
+    callbacks.setHoveredConst(found);
+  }
+
   window.addEventListener('mousemove', (e) => {
     if (!drag.active) {
-      const { starScreenBuf, starScreenCount, constLabelScreen, data, hipToConst } = callbacks.getScreenState();
-      let found = null;
-      const nearStar = findNearestStar(e.clientX, e.clientY, 20, starScreenBuf, starScreenCount, data.stars);
-      if (nearStar && hipToConst) {
-        const key = nearStar.ra.toFixed(6) + ',' + nearStar.dec.toFixed(5);
-        found = hipToConst.get(key) || null;
-      }
-      if (!found) {
-        const cl = findNearestConstLabel(e.clientX, e.clientY, 50, constLabelScreen);
-        found = cl ? cl.abbr : null;
-      }
-      callbacks.setHoveredConst(found);
+      hoverX = e.clientX; hoverY = e.clientY;
+      if (!hoverRaf) hoverRaf = requestAnimationFrame(hoverScan);
       return;
     }
 
@@ -213,6 +223,7 @@ export function setupInput(state, callbacks) {
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY,
       );
+      touchStartTime = 0; // a pinch is never a tap
     }
   }, { passive: false });
 
@@ -237,6 +248,11 @@ export function setupInput(state, callbacks) {
 
   canvas.addEventListener('touchend', (e) => {
     if (e.touches.length < 2) lastTouchDist = null;
+    if (e.touches.length === 1) {
+      // Pinch → single-finger pan: reseed from the remaining finger so the
+      // next touchmove doesn't jump from a stale pre-pinch position.
+      lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+    }
     if (e.touches.length < 1) {
       const dx = lastTouchX - touchStartX, dy = lastTouchY - touchStartY;
       const dt = performance.now() - touchStartTime;
@@ -246,6 +262,11 @@ export function setupInput(state, callbacks) {
       lastTouchX = null; lastTouchY = null;
     }
   }, { passive: false });
+
+  canvas.addEventListener('touchcancel', () => {
+    // An interrupted gesture (system UI, notification) must not leave stale state
+    lastTouchDist = null; lastTouchX = null; lastTouchY = null;
+  });
 
   window.addEventListener('resize', callbacks.onResize);
 

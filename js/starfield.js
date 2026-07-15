@@ -19,7 +19,7 @@ import { lst }             from './sky/time.js';
 // planet ephemeris managed by viewer/controls.js
 
 // --- Viewer modules ---
-import { LON_LA, FOV_DEFAULT, ALT_MIN, ALT_MAX } from './viewer/config.js';
+import { LON_LA, FOV_DEFAULT, ALT_MIN, ALT_MAX, reducedMotion } from './viewer/config.js';
 import { fovMagLimit, bvToColor, magToRadius, magToAlpha } from './viewer/visual.js';
 import { buildViewFrame } from './viewer/camera.js';
 import { advanceTime, getTimeState, setupTimeControls, updateEphemeris, getCachedPlanets, getCachedSun, getCachedMoon, setSpeed, resetTime } from './viewer/controls.js';
@@ -243,9 +243,13 @@ let _lastRenderTime = 0;
 
 function frame(timestamp) {
   _frameId = requestAnimationFrame(frame);
-  if (portfolioMode) {
-    const interval = getTimeState().timeSpeed > 1 ? 66 : 5000;
-    if (timestamp - _lastRenderTime < interval) return;
+  if (portfolioMode && _lastRenderTime) {
+    // Decorative background only: the sky drifts slowly enough that ~1 fps
+    // is visually identical to a faster cadence at a fraction of the CPU
+    // cost. Reduced-motion users keep a static first frame. Exploration
+    // mode is untouched — it renders at full rAF rate for smooth input.
+    if (reducedMotion) return;
+    if (timestamp - _lastRenderTime < 1000) return;
   }
   _lastRenderTime = timestamp;
   render();
@@ -348,6 +352,7 @@ function ensureInputSetup() {
 
 export function setPortfolioMode(enabled) {
   portfolioMode = enabled;
+  _lastRenderTime = 0; // render one immediate frame in the new mode's layer set
   if (enabled) {
     selectedObject = null;
     clickedConst = null;
