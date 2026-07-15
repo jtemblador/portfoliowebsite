@@ -48,7 +48,7 @@ const backBtn    = document.getElementById('back-btn');
 let _explorationMode = false;
 
 function enterExploration() {
-  if (!_starfieldReady) return;
+  if (!_starfieldReady || _explorationMode) return;
   _explorationMode = true;
   html.classList.add('exploring');
   clearTimeout(_bgSleepTimer);
@@ -67,6 +67,7 @@ function enterExploration() {
 }
 
 function exitExploration() {
+  if (!_explorationMode) return;
   _explorationMode = false;
   html.classList.remove('exploring');
   setPortfolioMode(true);
@@ -83,6 +84,13 @@ exploreBtn.addEventListener('click', enterExploration);
 backBtn.addEventListener('click', exitExploration);
 // Fired by the viewer's Escape handler (input.js) — keyboard path out of exploration
 window.addEventListener('viewer-exit', () => { if (_explorationMode) exitExploration(); });
+
+// Self-heal: an interrupted opacity transition (tab switch mid-fade, hot
+// reload) can strand the page semi-transparent. Snap it to the correct
+// state whenever the tab becomes visible again.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !_explorationMode) page.classList.remove('hidden');
+});
 
 // --- Name scrolls back to top ---
 
