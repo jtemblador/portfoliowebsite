@@ -133,6 +133,9 @@ body.starfield-standalone {
   0%, 100% { text-shadow: 0 0 4px rgba(255,60,60,0.4); }
   50% { text-shadow: 0 0 10px rgba(255,60,60,0.8); }
 }
+@media (prefers-reduced-motion: reduce) {
+  #live-indicator.live { animation: none; }
+}
 
 /* --- Shared button style --- */
 
