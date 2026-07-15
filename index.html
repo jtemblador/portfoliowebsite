@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Jose T. Temblador | Software Engineer</title>
-  <meta name="description" content="Jose T. Temblador — Software Engineer who graduated May 2026. Built a C++ satellite tracking engine, real-time star viewer, and NFL prediction model outperforming professional benchmarks. Based in Fontana, CA.">
+  <meta name="description" content="Jose T. Temblador, Software Engineer who graduated May 2026. Built a C++ satellite conjunction-screening engine validated against CelesTrak SOCRATES, a real-time star viewer, and an NFL prediction model outperforming professional benchmarks. Based in Fontana, CA.">
   <meta property="og:title" content="Jose T. Temblador | Software Engineer">
   <meta property="og:description" content="Software Engineer who graduated May 2026. C++ orbital propagation engine, real-time star viewer, NFL prediction model outperforming professional benchmarks.">
   <meta property="og:type" content="website">
@@ -89,7 +89,7 @@
           <section id="about">
             <h2>About Me</h2>
             <div class="section-text">
-              <p>Graduated from CSUDH in <b><u>May 2026</u></b> with an honors degree in Computer Science. Currently finishing <b><u>OrbitWatch</u></b>, a real-time satellite/conjunction tracker. The background of this site renders the current night sky over my where I live using 15,000 stars and live planetary positions. Currently looking for <b><u>full-time software engineering roles</u></b>, particularly in <b><u>aerospace and systems software</u></b>. <b><u>U.S. citizen, eligible for security clearance.</u></b></p>
+              <p>Graduated from CSUDH in <b><u>May 2026</u></b> with an honors degree in Computer Science. I recently built and deployed <b><u>OrbitWatch</u></b>, a C++ satellite conjunction-screening engine validated against CelesTrak SOCRATES. The background of this site renders the current night sky over where I live using 15,000 stars and live planetary positions. Currently looking for <b><u>full-time software engineering roles</u></b>, particularly in <b><u>aerospace and systems software</u></b>. <b><u>U.S. citizen, eligible for security clearance.</u></b></p>
               <p>I got into CS after working in infrastructure and healthcare. Those experiences taught me how to <b><u>manage complexity</u></b> and <b><u>communicate clearly</u></b>, which turns out to matter just as much in software as anywhere else.</p>
               <p>I also lead the worship band at House of the Lord where I play bass.</p>
               <p>Here are a few technologies I've been worked with recently</p>
@@ -113,29 +113,33 @@
             <h2>Some Things I've Built</h2>
             <div class="cards">
 
-              <!-- Project 1: OrbitWatch -->
-              <div class="card">
+              <!-- Project 1: OrbitWatch (whole card links to the live demo) -->
+              <div class="card card-clickable">
+                <a class="card-cover-link" href="https://jtemblador.github.io/OrbitWatch/"
+                   target="_blank" rel="noopener noreferrer"
+                   aria-label="Open the OrbitWatch live demo"></a>
                 <div class="card-header">
-                  <h3>OrbitWatch <span class="tag" style="font-size:0.7rem; vertical-align:middle; margin-left:0.5rem;">In Development</span></h3>
+                  <h3>OrbitWatch<span style="font-weight:400; text-transform:none; letter-spacing:normal; font-size:0.85rem; color:var(--text-body);"> &middot; Satellite Conjunction Screener</span> <span class="tag" style="font-size:0.7rem; vertical-align:middle; margin-left:0.5rem;">Live</span></h3>
                   <div class="project-links">
                     <a href="https://github.com/jtemblador/OrbitWatch"
                        target="_blank" rel="noopener noreferrer">GitHub</a>
                   </div>
                 </div>
-                <p style="color:var(--text-body)">A real-time satellite orbit tracker and collision predictor built with a custom C++ SGP4 propagation engine.</p>
+                <p style="color:var(--text-body)">A from-scratch C++ engine that flags close approaches between satellites from real orbital data, validated against CelesTrak SOCRATES and deployed as a live 3D globe.</p>
                 <ul class="card-list">
-                  <li><span class="bullet">&#9657;</span> C++ orbital engine compiled via pybind11 into Python, computing positions for hundreds of satellites in real time</li>
-                  <li><span class="bullet">&#9657;</span> Full coordinate transform pipeline from TEME frame through ECEF to geodetic lat/lon/alt using NASA's SPICE toolkit</li>
-                  <li><span class="bullet">&#9657;</span> FastAPI REST backend with 6 endpoints serving a Cesium.js interactive 3D globe with orbit trails and time controls</li>
-                  <li><span class="bullet">&#9657;</span> 279 automated tests across 7 test files covering the C++ engine, coordinate transforms, and all 6 API endpoints</li>
+                  <li><span class="bullet">&#9657;</span> From-scratch C++ SGP4 propagation engine (pybind11) validated to under 1 meter, feeding a coarse/medium/fine screening cascade for miss distance, relative velocity, and RTN geometry</li>
+                  <li><span class="bullet">&#9657;</span> Validated against CelesTrak SOCRATES with epoch-matched data, reproducing 100% of reference conjunctions (25/25, 40/40) to machine precision</li>
+                  <li><span class="bullet">&#9657;</span> Cut the full 16,000-satellite, 24-hour screen from an infeasible ~25&nbsp;GB to 5.4&nbsp;GB and ~5 minutes with a fused C++ pipeline, a node-crossing time filter, and OpenMP, proven byte-identical to the reference</li>
+                  <li><span class="bullet">&#9657;</span> Deployed live on a Cesium.js globe with client-side propagation and zero backend calls per visit, auto-refreshed 3&times;/day by GitHub Actions and backed by ~580 tests</li>
                 </ul>
                 <div class="tags">
                   <span class="tag">C++</span>
+                  <span class="tag">OpenMP</span>
                   <span class="tag">Python</span>
-                  <span class="tag">FastAPI</span>
-                  <span class="tag">CesiumJS</span>
-                  <span class="tag">NASA SPICE</span>
                   <span class="tag">pybind11</span>
+                  <span class="tag">Cesium.js</span>
+                  <span class="tag">FastAPI</span>
+                  <span class="tag">GitHub Actions</span>
                 </div>
               </div>
 
