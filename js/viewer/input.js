@@ -71,7 +71,10 @@ function isHelpOpen() {
 
 function toggleHelp(force) {
   const el = document.getElementById('help-panel');
-  if (el) el.classList.toggle('visible', force);
+  if (!el) return;
+  const nowOpen = el.classList.toggle('visible', force);
+  const btn = document.getElementById('help-btn');
+  if (btn) { btn.classList.toggle('active', nowOpen); btn.setAttribute('aria-pressed', String(nowOpen)); }
 }
 
 function setupHelp() {
