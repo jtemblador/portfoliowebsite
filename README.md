@@ -2,13 +2,13 @@
 
 Live at [josetemblador.com](https://josetemblador.com).
 
-I'm a Computer Science student at California State University Dominguez Hills, graduating May 2026. I like building things from scratch and understanding how they work under the hood. I'm currently looking for full-time roles in software and ML engineering.
+I'm a Computer Science graduate of California State University Dominguez Hills (May 2026). I like building things from scratch and understanding how they work under the hood. I'm currently looking for full-time roles in software and ML engineering.
 
 ## What's Here
 
 **Portfolio** — About me, projects, experience, and contact info. Vanilla HTML, CSS, and JavaScript — no frameworks, no build step.
 
-**Live Star Viewer** — The background is a real-time interactive star viewer rendering the night sky from Los Angeles. It's built entirely in vanilla JavaScript and Canvas2D across 15 ES modules (~2,400 lines). Click the star icon in the sidebar to enter full exploration mode with drag-to-pan, zoom, search, time controls, and object info popups.
+**Live Star Viewer** — The background is a real-time interactive star viewer rendering the night sky from Fontana, CA. It's built entirely in vanilla JavaScript and Canvas2D across 15 ES modules (~2,400 lines). Click the star icon in the sidebar to enter full exploration mode with drag-to-pan, zoom, search, time controls, and object info popups.
 
 ## Projects
 

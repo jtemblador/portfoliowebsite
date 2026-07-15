@@ -36,7 +36,7 @@ export function gmst(jd) {
 
 /**
  * Local Sidereal Time in degrees for a given Julian Date and observer longitude.
- * lon: observer longitude in degrees (east positive; LA ≈ -118.2437)
+ * lon: observer longitude in degrees (east positive; Fontana ≈ -117.4350)
  */
 export function lst(jd, lon) {
   return ((gmst(jd) + lon) % 360 + 360) % 360;

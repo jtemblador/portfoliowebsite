@@ -1,7 +1,7 @@
 /**
  * starfield.js — Interactive Star Viewer (Application Shell)
  *
- * Real-time night sky from Los Angeles (34.05°N, 118.24°W).
+ * Real-time night sky from Fontana, CA (34.09°N, 117.44°W).
  * Camera-frame projection in horizontal space — flat horizon at all azimuths.
  *
  * Architecture:
@@ -150,7 +150,7 @@ function updateInfo() {
   const magLimit = fovMagLimit(view.fov);
   const g = (on, key) => on ? `<span style="color:#4f4">[${key}]</span>` : `<span style="color:#555">[${key}]</span>`;
   infoEl.innerHTML =
-    `<b>Star Viewer — Los Angeles</b><br>` +
+    `<b>Star Viewer — Fontana, CA</b><br>` +
     `FOV: ${view.fov.toFixed(1)}° | Mag: ${magLimit.toFixed(1)}<br>` +
     g(overlays.altAzGrid, 'G') + ' ' + g(overlays.eqGrid, 'Q') + ' ' +
     g(overlays.ecliptic, 'E') + ' ' + g(toggles.constellations, 'C');
