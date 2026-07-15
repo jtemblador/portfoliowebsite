@@ -5,9 +5,9 @@
  * Imported by all other viewer modules — no circular dependencies.
  */
 
-// Observer location: Los Angeles, CA
-export const LAT_LA  =  34.0522;   // degrees north
-export const LON_LA  = -118.2437;  // degrees east (west is negative)
+// Observer location: Fontana, CA
+export const LAT_LA  =  34.0922;   // degrees north
+export const LON_LA  = -117.4350;  // degrees east (west is negative)
 export const SIN_LAT = Math.sin(LAT_LA * Math.PI / 180);
 export const COS_LAT = Math.cos(LAT_LA * Math.PI / 180);
 
