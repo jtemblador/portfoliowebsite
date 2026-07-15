@@ -1,6 +1,8 @@
 {
   "name": "Jose Temblador Portfolio",
   "short_name": "JT Portfolio",
+  "description": "Portfolio of Jose T. Temblador, software engineer.",
+  "start_url": "/",
   "icons": [
     {
       "src": "assets/icons/android-chrome-192x192.png",
@@ -13,7 +15,7 @@
       "type": "image/png"
     }
   ],
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff",
+  "theme_color": "#050510",
+  "background_color": "#050510",
   "display": "standalone"
 }

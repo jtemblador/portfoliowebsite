@@ -19,7 +19,7 @@ I'm a Computer Science graduate of California State University Dominguez Hills (
 
 ## How the Star Viewer Works
 
-The star catalog comes from the HYG v42 database (119,627 stars filtered to 15,598 at magnitude 7.0). A Python preprocessing pipeline combines it with Stellarium constellation data, 27 deep sky objects, and a Milky Way centerline path into a compact 521 KB JSON file.
+The star catalog comes from the HYG v42 database (119,627 stars filtered to 15,598 at magnitude 7.0). A Python preprocessing pipeline combines it with Stellarium constellation data, 27 deep sky objects, and a Milky Way centerline path into a compact ~750 KB JSON file (regenerate it with `python scripts/process_stars.py` — it downloads the source catalogs on first run).
 
 At runtime, planetary positions are computed using JPL Keplerian orbital elements. Sun and Moon positions come from simplified Meeus algorithms. All ephemeris data is cached and refreshed once per minute.
 
