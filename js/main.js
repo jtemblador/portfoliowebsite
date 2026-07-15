@@ -1,50 +1,39 @@
 /**
  * main.js — Portfolio site controller.
  *
- * Theme toggle, nav highlighting, scroll fade-ins, mouse highlight,
+ * Nav highlighting, scroll fade-ins, mouse highlight,
  * and star viewer integration with portfolio/exploration mode toggle.
  */
 
 import { init as initStarfield, startRenderer, stopRenderer, setPortfolioMode, ensureInputSetup } from './starfield.js';
 
 const html = document.documentElement;
+const canvas = document.getElementById('sky-canvas');
 
-// --- Theme Toggle ---
-
-const toggle = document.getElementById('theme-toggle');
-const iconSun  = document.getElementById('icon-sun');
-const iconMoon = document.getElementById('icon-moon');
-const canvas   = document.getElementById('sky-canvas');
-
-let isDark = true;
 let _starfieldReady = false;
 
-function applyTheme(dark) {
-  isDark = dark;
-  html.setAttribute('data-theme', dark ? 'dark' : 'light');
-  iconSun.style.display  = dark ? 'block' : 'none';
-  iconMoon.style.display = dark ? 'none'  : 'block';
-  if (!_starfieldReady) return;
-  if (dark) {
-    startRenderer();
-    canvas.classList.add('visible');
-  } else {
-    stopRenderer();
-    if (_explorationMode) exitExploration();
-  }
-}
+// --- Background sleep timer ---
+// The decorative landing-page background stops animating after 8 minutes to
+// avoid draining CPU/battery indefinitely. The last frame stays on screen.
+// Entering exploration always wakes it; returning to the portfolio re-arms it.
 
-applyTheme(true);
-toggle.addEventListener('click', () => applyTheme(!isDark));
+const BG_SLEEP_MS = 8 * 60 * 1000;
+let _bgSleepTimer = null;
+
+function armBgSleepTimer() {
+  clearTimeout(_bgSleepTimer);
+  _bgSleepTimer = setTimeout(() => {
+    if (!_explorationMode) stopRenderer();
+  }, BG_SLEEP_MS);
+}
 
 // --- Star Viewer Init ---
 
 initStarfield().then(() => {
   _starfieldReady = true;
-  if (isDark) {
-    startRenderer();
-    requestAnimationFrame(() => requestAnimationFrame(() => canvas.classList.add('visible'))); // triggers 3s CSS fade-in
-  }
+  startRenderer();
+  armBgSleepTimer();
+  requestAnimationFrame(() => requestAnimationFrame(() => canvas.classList.add('visible'))); // triggers 3s CSS fade-in
 }).catch((err) => {
   console.warn('Star viewer failed to load:', err);
 });
@@ -61,11 +50,9 @@ let _explorationMode = false;
 function enterExploration() {
   if (!_starfieldReady) return;
   _explorationMode = true;
-  // The star viewer is always the night sky — show it even if the page is in
-  // light mode (where the decorative background canvas is normally hidden).
   html.classList.add('exploring');
-  startRenderer();
-  canvas.classList.add('visible');
+  clearTimeout(_bgSleepTimer);
+  startRenderer(); // wake the renderer in case the background sleep timer stopped it
   ensureInputSetup();
   setPortfolioMode(false);
   canvas.style.pointerEvents = 'auto';
@@ -77,15 +64,10 @@ function exitExploration() {
   _explorationMode = false;
   html.classList.remove('exploring');
   setPortfolioMode(true);
+  armBgSleepTimer();
   canvas.style.pointerEvents = 'none';
   viewerUI.classList.remove('visible');
   setTimeout(() => { page.classList.remove('hidden'); }, 300);
-  // Light mode has no decorative starfield — stop the loop and hide the canvas
-  // again now that we've returned from exploration.
-  if (!isDark) {
-    stopRenderer();
-    canvas.classList.remove('visible');
-  }
 }
 
 exploreBtn.addEventListener('click', enterExploration);
