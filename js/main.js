@@ -52,9 +52,12 @@ function enterExploration() {
   _explorationMode = true;
   html.classList.add('exploring');
   clearTimeout(_bgSleepTimer);
-  startRenderer(); // wake the renderer in case the background sleep timer stopped it
   ensureInputSetup();
+  // Switch mode (which resets sim time) BEFORE waking the renderer: after a
+  // long background sleep, rendering first would flash one far-future sky
+  // frame built from the stale portfolio-speed time offset.
   setPortfolioMode(false);
+  startRenderer(); // wake the renderer in case the background sleep timer stopped it
   canvas.style.pointerEvents = 'auto';
   page.classList.add('hidden');
   setTimeout(() => {

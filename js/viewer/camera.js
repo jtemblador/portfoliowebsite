@@ -37,7 +37,8 @@ export function buildViewFrame(altDeg, azDeg, lstDeg) {
   };
 }
 
-// Reusable scratch results — projection runs up to ~17k times per frame, so
+// Reusable scratch results — projection runs ~17k times per frame at the
+// default overlays (up to ~29k with both grids enabled), so
 // returning a fresh object per call would allocate megabytes/sec of garbage.
 // Callers that need two live results at once (line segments) pass their own.
 const _out = { x: 0, y: 0, cosAngle: 0, belowHorizon: false };
@@ -129,10 +130,6 @@ export function unprojectScreen(px, py, cx, cy, scale, viewFrame) {
 }
 
 /**
- * Project a point in horizontal coordinates (alt/az degrees) to screen space.
- * Used for horizon line, cardinal labels, and grid overlays.
- */
-/**
  * Apply drag rotation to the view. Scales azimuth movement by cos(alt)
  * so horizontal dragging feels consistent near the zenith/nadir.
  */
@@ -144,6 +141,10 @@ export function applyDragRotation(alt, az, dx, dy, degPerPx) {
   return { alt: newAlt, az: newAz };
 }
 
+/**
+ * Project a point in horizontal coordinates (alt/az degrees) to screen space.
+ * Used for horizon line, cardinal labels, and grid overlays.
+ */
 export function projectHzPoint(alt, az, viewFrame, out = _outHz) {
   const altR = alt * D2R, azR = az * D2R;
   const xHz = Math.cos(altR) * Math.sin(azR);

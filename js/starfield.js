@@ -195,12 +195,15 @@ function stopInertia() {
 // with two drawImage calls instead of ~3-13k projections + 115 fillTexts.
 
 const _layerCache = { key: '', under: null, underCtx: null, over: null, overCtx: null, dsoBuf: [], labelBuf: [] };
+let _lastMissKey = '';   // key seen last frame — rebuild only when stable
+let _fadesChanged = false; // did any constellation fade alpha move this frame?
 
 function layerCacheKey(lstDeg) {
   // lst bucketed at 0.005° (~0.05px at default FOV): live sidereal drift
   // invalidates the cache every ~1.2s rather than every frame.
   return view.az.toFixed(3) + ',' + view.alt.toFixed(3) + ',' + view.fov.toFixed(3) +
-    ',' + W + 'x' + H + ',' + Math.round(lstDeg / 0.005) +
+    ',' + W + 'x' + H + ',' + (window.devicePixelRatio || 1) +
+    ',' + Math.round(lstDeg / 0.005) +
     ',' + overlays.altAzGrid + overlays.eqGrid + overlays.ecliptic + toggles.constellations;
 }
 
@@ -290,18 +293,25 @@ function render() {
   const scale = fovToScale(view.fov, Math.min(cx, cy));
   const rc = { ctx, cx, cy, scale, vf, fov: view.fov };
 
-  // Constellation fade animation — hovered and clicked both stay highlighted
+  // Constellation fade animation — hovered and clicked both stay highlighted.
+  // _fadesChanged tracks whether any alpha actually moved this frame: a
+  // highlight pinned at 1 is styled differently but is NOT animating, so it
+  // shouldn't hold the frame rate at the interactive cap forever.
   const fadeSpeed = dt / 0.3;
+  _fadesChanged = false;
   for (const abbr in constFadeAlphas) {
     if (abbr === hoveredConst || abbr === clickedConst) continue;
     constFadeAlphas[abbr] -= fadeSpeed;
+    _fadesChanged = true;
     if (constFadeAlphas[abbr] <= 0) delete constFadeAlphas[abbr];
   }
-  if (hoveredConst) {
+  if (hoveredConst && constFadeAlphas[hoveredConst] !== 1) {
     constFadeAlphas[hoveredConst] = Math.min(1, (constFadeAlphas[hoveredConst] || 0) + fadeSpeed);
+    _fadesChanged = true;
   }
-  if (clickedConst && clickedConst !== hoveredConst) {
+  if (clickedConst && clickedConst !== hoveredConst && constFadeAlphas[clickedConst] !== 1) {
     constFadeAlphas[clickedConst] = Math.min(1, (constFadeAlphas[clickedConst] || 0) + fadeSpeed);
+    _fadesChanged = true;
   }
 
   // Lazy-allocate star screen buffer
@@ -317,15 +327,24 @@ function render() {
   // bases, constellation lines, labels) depend only on view+time — stamp
   // them from offscreen canvases and render just the dynamic objects live.
   // Any interaction (drag, pan target, fast time, constellation fades)
-  // bypasses the cache and draws everything directly.
+  // bypasses the cache and draws everything directly. The cache is only
+  // (re)built once the key has been stable for two consecutive frames, so
+  // continuous zoom/keyboard-pan/touch-pan (which don't set drag.active)
+  // render direct instead of thrashing a full rebuild every frame.
   let anyFade = false;
   for (const k in constFadeAlphas) { anyFade = true; break; }
   const cacheable = !portfolioMode && !drag.active && viewTarget === null &&
                     _inertia === null && !anyFade &&
                     Math.abs(getTimeState().timeSpeed) <= 1;
-
+  let key = '';
+  let cacheReady = false;
   if (cacheable) {
-    const key = layerCacheKey(lstDeg);
+    key = layerCacheKey(lstDeg);
+    cacheReady = _layerCache.key === key || key === _lastMissKey;
+    _lastMissKey = key;
+  }
+
+  if (cacheable && cacheReady) {
     if (_layerCache.key !== key) rebuildLayerCache(key, lstDeg, scale, vf);
     ctx.drawImage(_layerCache.under, 0, 0, W, H);
     dsoScreenBuf = _layerCache.dsoBuf;
@@ -375,11 +394,14 @@ let _lastSceneSig = '';
 
 // Cheap scene fingerprint — when it's unchanged and nothing is animating,
 // the only frame-to-frame difference is star twinkle / selection pulse.
+// Selection uses coordinates (stars have no name); the sim-minute bucket
+// keeps reduced-motion users' static sky honest across time jumps.
 function sceneSignature() {
   return view.az.toFixed(4) + ',' + view.alt.toFixed(4) + ',' + view.fov.toFixed(3) +
     ',' + W + 'x' + H +
     ',' + (hoveredConst || '') + ',' + (clickedConst || '') +
-    ',' + (selectedObject ? (selectedObject.name || selectedObject.type || 's') : '') +
+    ',' + (selectedObject ? (selectedObject.name || selectedObject.ra + ':' + selectedObject.dec) : '') +
+    ',' + Math.floor((Date.now() + getTimeState().timeOffsetMs) / 60000) +
     ',' + overlays.altAzGrid + overlays.eqGrid + overlays.ecliptic + toggles.constellations;
 }
 
@@ -396,21 +418,20 @@ function frame(timestamp) {
       if (elapsed < 100) return;
     }
   } else {
-    // Exploration: cap at ~30 fps while interacting (drag/pan/zoom/time/fades
-    // — twinkle stays smooth), drop to ~10 fps when the scene is static and
-    // only twinkle/pulse animate, and go fully still under reduced motion
-    // (twinkle and pulses are already disabled there).
-    let anyFade = false;
-    for (const k in constFadeAlphas) { anyFade = true; break; }
+    // Exploration: cap at ~30 fps while things move (drag/pan/zoom/time/fade
+    // transitions — twinkle stays smooth), drop to ~10 fps when the scene is
+    // static and only twinkle/pulse animate, and go fully still under
+    // reduced motion (twinkle and pulses are already disabled there).
+    // A highlight pinned at full strength counts as static (_fadesChanged).
     // Live time (speed 1) moves the sky sub-pixel per frame — not animation.
-    // Only fast time-travel (|speed| > 1) needs the interactive rate.
-    const animating = drag.active || viewTarget !== null || anyFade ||
+    const animating = drag.active || viewTarget !== null || _fadesChanged ||
                       _inertia !== null || Math.abs(getTimeState().timeSpeed) > 1;
     const sig = sceneSignature();
     if (animating || sig !== _lastSceneSig) {
       if (elapsed < 33) return;
     } else if (reducedMotion) {
-      if (_lastRenderTime) return;
+      // Sky stays frozen, but the clock display must keep tracking time
+      if (_lastRenderTime) { updateClock(); return; }
     } else if (elapsed < 100) {
       return;
     }
@@ -502,7 +523,7 @@ async function init() {
   buildSearchIndex(data, getCachedPlanets(), getCachedMoon());
   setupTimeControls();
   setupSearch({
-    setViewTarget: (t) => { viewTarget = t; },
+    setViewTarget: (t) => { viewTarget = t; if (t) _inertia = null; },
     setSelectedObject: (o) => { selectedObject = o; },
     setClickedConst: (c) => { clickedConst = c; },
     getAppState: () => ({ cachedPlanets: getCachedPlanets(), cachedMoon: getCachedMoon(), data, cx, cy }),
@@ -516,7 +537,7 @@ function ensureInputSetup() {
   setupInput(
     { view, drag, overlays, toggles, canvas, getSize: () => ({ W, H }) },
     {
-      setViewTarget: (t) => { viewTarget = t; },
+      setViewTarget: (t) => { viewTarget = t; if (t) _inertia = null; },
       setSelectedObject: (o) => { selectedObject = o; },
       setClickedConst: (c) => { clickedConst = c; },
       setHoveredConst: (h) => { hoveredConst = h; },
@@ -538,6 +559,7 @@ export function setPortfolioMode(enabled) {
   portfolioMode = enabled;
   _lastRenderTime = 0; // render one immediate frame in the new mode's layer set
   _lastSceneSig = '';
+  _inertia = null; // a fling must not keep panning across a mode switch
   if (enabled) {
     selectedObject = null;
     clickedConst = null;
@@ -545,7 +567,7 @@ export function setPortfolioMode(enabled) {
     constFadeAlphas = {};
     viewTarget = null;
     canvas.style.cursor = '';
-    setSpeed(25);
+    setSpeed(100); // match the fresh-load portfolio speed set in init()
   } else {
     canvas.style.cursor = 'grab';
     resetTime();

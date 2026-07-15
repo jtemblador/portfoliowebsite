@@ -2,7 +2,8 @@
  * render-overlays.js — Overlay render layers for the star viewer.
  *
  * Constellation lines/highlights, object selection ring, cardinal direction
- * markers, and constellation/DSO labels. Drawn on top of all sky objects.
+ * markers, and constellation/DSO labels. Lines draw beneath the stars;
+ * highlights, cardinals, and labels draw on top of all sky objects.
  *
  * All functions take a render context: { ctx, cx, cy, scale, vf, fov }.
  */
