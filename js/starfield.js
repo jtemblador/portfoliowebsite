@@ -19,9 +19,9 @@ import { lst }             from './sky/time.js';
 // planet ephemeris managed by viewer/controls.js
 
 // --- Viewer modules ---
-import { LON_LA, FOV_DEFAULT, ALT_MIN, ALT_MAX, reducedMotion } from './viewer/config.js';
+import { LON_LA, FOV_DEFAULT, FOV_MIN, FOV_MAX, ALT_MIN, ALT_MAX, reducedMotion } from './viewer/config.js';
 import { fovMagLimit, bvToColor, magToRadius, magToAlpha } from './viewer/visual.js';
-import { buildViewFrame, precomputeEq } from './viewer/camera.js';
+import { buildViewFrame, precomputeEq, unprojectScreen, applyDragRotation } from './viewer/camera.js';
 import { advanceTime, getTimeState, setupTimeControls, updateEphemeris, getCachedPlanets, getCachedSun, getCachedMoon, setSpeed, resetTime } from './viewer/controls.js';
 import { updatePopup } from './viewer/popup.js';
 import { buildSearchIndex, setupSearch } from './viewer/search.js';
@@ -158,6 +158,35 @@ function updateInfo() {
 
 // --- Main render ---
 
+// --- Cursor-anchored zoom ---
+// Change FOV while keeping the sky point under (focusX, focusY) fixed:
+// unproject the focus pixel before and after the FOV change, then pan the
+// view by the difference.
+function applyZoom(focusX, focusY, newFov) {
+  newFov = Math.max(FOV_MIN, Math.min(FOV_MAX, newFov));
+  const jd = (Date.now() + getTimeState().timeOffsetMs) / 86400000 + 2440587.5;
+  const vfNow = buildViewFrame(view.alt, view.az, lst(jd, LON_LA));
+  const half = Math.min(cx, cy);
+  const before = unprojectScreen(focusX, focusY, cx, cy, fovToScale(view.fov, half), vfNow);
+  view.fov = newFov;
+  const after = unprojectScreen(focusX, focusY, cx, cy, fovToScale(newFov, half), vfNow);
+  const dAz = ((before.az - after.az + 540) % 360) - 180;
+  view.az = ((view.az + dAz) % 360 + 360) % 360;
+  view.alt = Math.max(ALT_MIN, Math.min(ALT_MAX, view.alt + (before.alt - after.alt)));
+}
+
+// --- Drag inertia ---
+// A released fling keeps panning with exponential decay. Runs in render()
+// so it shares the interactive frame rate; cleared by any new pointer-down.
+let _inertia = null; // { vx, vy } in px/s
+
+function startInertia(vx, vy) {
+  _inertia = { vx, vy };
+}
+function stopInertia() {
+  _inertia = null;
+}
+
 // --- Offscreen layer cache (exploration idle path) ---
 // Two full-size canvases: "under" holds everything painted below the stars
 // (Milky Way, twilight, grids, ecliptic/zodiac, DSO bases, constellation
@@ -246,6 +275,16 @@ function render() {
     }
   }
 
+  // Fling inertia — decays exponentially after a released drag
+  if (_inertia) {
+    const degPerPx = view.fov / Math.min(W, H);
+    const nv = applyDragRotation(view.alt, view.az, _inertia.vx * dt, _inertia.vy * dt, degPerPx);
+    view.alt = nv.alt; view.az = nv.az;
+    const decay = Math.exp(-dt / 0.4);
+    _inertia.vx *= decay; _inertia.vy *= decay;
+    if (Math.hypot(_inertia.vx, _inertia.vy) < 15) _inertia = null;
+  }
+
   // Build camera frame and render context
   const vf = buildViewFrame(view.alt, view.az, lstDeg);
   const scale = fovToScale(view.fov, Math.min(cx, cy));
@@ -282,7 +321,8 @@ function render() {
   let anyFade = false;
   for (const k in constFadeAlphas) { anyFade = true; break; }
   const cacheable = !portfolioMode && !drag.active && viewTarget === null &&
-                    !anyFade && Math.abs(getTimeState().timeSpeed) <= 1;
+                    _inertia === null && !anyFade &&
+                    Math.abs(getTimeState().timeSpeed) <= 1;
 
   if (cacheable) {
     const key = layerCacheKey(lstDeg);
@@ -365,7 +405,7 @@ function frame(timestamp) {
     // Live time (speed 1) moves the sky sub-pixel per frame — not animation.
     // Only fast time-travel (|speed| > 1) needs the interactive rate.
     const animating = drag.active || viewTarget !== null || anyFade ||
-                      Math.abs(getTimeState().timeSpeed) > 1;
+                      _inertia !== null || Math.abs(getTimeState().timeSpeed) > 1;
     const sig = sceneSignature();
     if (animating || sig !== _lastSceneSig) {
       if (elapsed < 33) return;
@@ -482,6 +522,9 @@ function ensureInputSetup() {
       setHoveredConst: (h) => { hoveredConst = h; },
       isViewerActive: () => !portfolioMode,
       hasSelection: () => !!(selectedObject || clickedConst),
+      applyZoom,
+      startInertia,
+      stopInertia,
       onResize: resize,
       getScreenState: () => ({
         starScreenBuf, starScreenCount, planetScreenBuf, moonScreenPos,

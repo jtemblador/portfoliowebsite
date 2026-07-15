@@ -15,7 +15,7 @@
  *         → canvas: px = cx + x*scale, py = cy - y*scale
  */
 
-import { D2R, ALT_MIN, ALT_MAX, SIN_LAT, COS_LAT } from './config.js';
+import { D2R, R2D, ALT_MIN, ALT_MAX, SIN_LAT, COS_LAT } from './config.js';
 
 /**
  * Build camera basis vectors from the current view orientation.
@@ -105,6 +105,27 @@ export function precomputeEq(ra, dec) {
   const raR = ra * 15 * D2R, decR = dec * D2R;
   const cd = Math.cos(decR);
   return [Math.sin(decR), cd * Math.cos(raR), cd * Math.sin(raR)];
+}
+
+/**
+ * Inverse of the stereographic projection: screen pixel → horizontal alt/az.
+ * Used to keep the sky point under the cursor fixed while zooming.
+ * Returns { alt, az } in degrees.
+ */
+export function unprojectScreen(px, py, cx, cy, scale, viewFrame) {
+  const sx = (px - cx) / scale, sy = (cy - py) / scale;
+  const r2 = sx * sx + sy * sy;
+  const cosA = (1 - r2) / (1 + r2);   // from r² = (1-cosA)/(1+cosA)
+  const D = 1 + cosA;
+  const camX = sx * D, camY = sy * D;
+  // Reconstruct the horizontal-frame direction: v = camX·R + camY·U + cosA·F
+  const vx = camX * viewFrame.rX + camY * viewFrame.uX + cosA * viewFrame.fX;
+  const vy = camX * viewFrame.rY + camY * viewFrame.uY + cosA * viewFrame.fY;
+  const vz =                       camY * viewFrame.uZ + cosA * viewFrame.fZ;
+  return {
+    alt: Math.asin(Math.max(-1, Math.min(1, vz))) * R2D,
+    az: ((Math.atan2(vx, vy) * R2D) % 360 + 360) % 360,
+  };
 }
 
 /**

@@ -310,3 +310,69 @@ body.starfield-standalone {
   vertical-align: middle;
   margin-right: 4px;
 }
+
+/* --- Help (button next to Overlays, panel drops up) --- */
+
+#help-btn {
+  position: fixed;
+  bottom: 0.75rem;
+  right: 7.5rem;
+  z-index: 10;
+  padding: 0.4rem 0.7rem;
+  font: 0.7rem monospace;
+}
+#help-panel {
+  display: none;
+  position: fixed;
+  bottom: 3rem;
+  right: 0.75rem;
+  z-index: 20;
+  background: rgba(5,5,16,0.94);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  padding: 0.9rem 1.1rem;
+  font-size: 0.72rem;
+  line-height: 1.9;
+  color: #aaa;
+  max-width: 300px;
+}
+#help-panel.visible { display: block; }
+#help-panel h3 {
+  color: #ddd;
+  font-size: 0.8rem;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+#help-panel ul { list-style: none; margin: 0; padding: 0; }
+#help-panel b { color: #8fc7ff; font-weight: 600; }
+
+/* --- Small screens --- */
+
+@media (max-width: 600px) {
+  /* The FOV/mag info panel is developer chrome — free the bottom-left */
+  #info { display: none; }
+
+  /* Fixed-width panels must not overflow narrow viewports */
+  #object-popup {
+    width: auto;
+    left: 0.75rem;
+    right: 0.75rem;
+    max-width: 340px;
+    top: 3.4rem; /* clear the top-center Search button */
+  }
+  #search-panel { width: calc(100vw - 1.5rem); max-width: 320px; }
+
+  /* Bigger touch targets (~40px) for time + control buttons */
+  #time-controls button { padding: 0.55rem 0.7rem; font-size: 0.8rem; }
+  #menu-toggle, #help-btn, .ctrl-btn { padding: 0.55rem 0.8rem; font-size: 0.75rem; }
+
+  /* Stack Overlays + help above the centered time bar to avoid overlap */
+  #menu-container { bottom: 3.6rem; }
+  #overlay-menu { bottom: 2.8rem; }
+  #help-btn { bottom: 3.6rem; right: 6.2rem; }
+  #help-panel { bottom: 6.4rem; max-width: calc(100vw - 1.5rem); }
+
+  /* Clock shrinks so it doesn't crowd the back button */
+  #clock-panel { font-size: 0.6rem; padding: 0.4rem 0.6rem; }
+  #clock-time { font-size: 0.9rem; }
+}
