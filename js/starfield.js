@@ -21,7 +21,7 @@ import { lst }             from './sky/time.js';
 // --- Viewer modules ---
 import { LON_LA, FOV_DEFAULT, ALT_MIN, ALT_MAX, reducedMotion } from './viewer/config.js';
 import { fovMagLimit, bvToColor, magToRadius, magToAlpha } from './viewer/visual.js';
-import { buildViewFrame } from './viewer/camera.js';
+import { buildViewFrame, precomputeEq } from './viewer/camera.js';
 import { advanceTime, getTimeState, setupTimeControls, updateEphemeris, getCachedPlanets, getCachedSun, getCachedMoon, setSpeed, resetTime } from './viewer/controls.js';
 import { updatePopup } from './viewer/popup.js';
 import { buildSearchIndex, setupSearch } from './viewer/search.js';
@@ -158,6 +158,69 @@ function updateInfo() {
 
 // --- Main render ---
 
+// --- Offscreen layer cache (exploration idle path) ---
+// Two full-size canvases: "under" holds everything painted below the stars
+// (Milky Way, twilight, grids, ecliptic/zodiac, DSO bases, constellation
+// lines); "over" holds the labels painted above everything. Both depend only
+// on (view, size, lst-bucket, overlay flags), so at rest they are stamped
+// with two drawImage calls instead of ~3-13k projections + 115 fillTexts.
+
+const _layerCache = { key: '', under: null, underCtx: null, over: null, overCtx: null, dsoBuf: [], labelBuf: [] };
+
+function layerCacheKey(lstDeg) {
+  // lst bucketed at 0.005° (~0.05px at default FOV): live sidereal drift
+  // invalidates the cache every ~1.2s rather than every frame.
+  return view.az.toFixed(3) + ',' + view.alt.toFixed(3) + ',' + view.fov.toFixed(3) +
+    ',' + W + 'x' + H + ',' + Math.round(lstDeg / 0.005) +
+    ',' + overlays.altAzGrid + overlays.eqGrid + overlays.ecliptic + toggles.constellations;
+}
+
+function rebuildLayerCache(key, lstDeg, scale, vf) {
+  const dpr = window.devicePixelRatio || 1;
+  const pw = Math.round(W * dpr), ph = Math.round(H * dpr);
+  if (!_layerCache.under) {
+    _layerCache.under = document.createElement('canvas');
+    _layerCache.over  = document.createElement('canvas');
+    _layerCache.underCtx = _layerCache.under.getContext('2d');
+    _layerCache.overCtx  = _layerCache.over.getContext('2d');
+  }
+  for (const c of [_layerCache.under, _layerCache.over]) {
+    if (c.width !== pw || c.height !== ph) { c.width = pw; c.height = ph; }
+  }
+
+  const uc = _layerCache.underCtx, oc = _layerCache.overCtx;
+  uc.setTransform(dpr, 0, 0, dpr, 0, 0);
+  oc.setTransform(dpr, 0, 0, dpr, 0, 0);
+  uc.clearRect(0, 0, W, H);
+  oc.clearRect(0, 0, W, H);
+
+  const rcU = { ctx: uc, cx, cy, scale, vf, fov: view.fov };
+  renderMilkyWay(rcU);
+  renderTwilight(rcU, lstDeg, getCachedSun());
+  if (overlays.altAzGrid) renderAltAzGrid(rcU);
+  if (overlays.eqGrid) renderEqGrid(rcU);
+  if (overlays.ecliptic) { renderZodiacBand(rcU); renderEcliptic(rcU); }
+  _layerCache.dsoBuf = renderDSOs(rcU, data.dsos, null); // pulse drawn live
+  renderConstellationLines(rcU, data.constellations, constFadeAlphas, toggles.constellations);
+
+  const rcO = { ctx: oc, cx, cy, scale, vf, fov: view.fov };
+  _layerCache.labelBuf = renderLabels(rcO, data.constellations, data.dsos, constFadeAlphas, toggles.constellations);
+
+  _layerCache.key = key;
+}
+
+// The cached DSO layer is drawn without selection state; the pulsing ring for
+// a selected DSO animates live on top of it.
+function drawSelectedDsoPulse() {
+  if (!selectedObject || selectedObject.type !== 'dso') return;
+  const d = _layerCache.dsoBuf.find(e => e.name === selectedObject.name);
+  if (!d) return;
+  const pulse = reducedMotion ? 1.0 : 0.7 + 0.3 * Math.sin(performance.now() * 0.003);
+  ctx.strokeStyle = `rgba(180,180,255,${pulse})`;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(d.px, d.py, d.screenR + 4, 0, Math.PI * 2); ctx.stroke();
+}
+
 function render() {
   if (!data || !ctx) return;
   const jd = advanceTime();
@@ -211,25 +274,53 @@ function render() {
   ctx.fillStyle = '#050510';
   ctx.fillRect(0, 0, W, H);
 
-  // Background layers
-  if (!portfolioMode) renderMilkyWay(rc);
-  if (!portfolioMode) renderTwilight(rc, lstDeg, getCachedSun());
-  if (!portfolioMode && overlays.altAzGrid) renderAltAzGrid(rc);
-  if (!portfolioMode && overlays.eqGrid) renderEqGrid(rc);
-  if (!portfolioMode && overlays.ecliptic) { renderZodiacBand(rc); renderEcliptic(rc); }
+  // Exploration idle path: static layers (Milky Way, grids, ecliptic, DSO
+  // bases, constellation lines, labels) depend only on view+time — stamp
+  // them from offscreen canvases and render just the dynamic objects live.
+  // Any interaction (drag, pan target, fast time, constellation fades)
+  // bypasses the cache and draws everything directly.
+  let anyFade = false;
+  for (const k in constFadeAlphas) { anyFade = true; break; }
+  const cacheable = !portfolioMode && !drag.active && viewTarget === null &&
+                    !anyFade && Math.abs(getTimeState().timeSpeed) <= 1;
 
-  // Sky objects (return screen buffers for hit testing)
-  if (!portfolioMode) dsoScreenBuf = renderDSOs(rc, data.dsos, selectedObject);
-  renderConstellationLines(rc, data.constellations, constFadeAlphas, toggles.constellations);
-  starScreenCount = renderStars(rc, data.stars, starScreenBuf, portfolioMode);
-  if (!portfolioMode) renderConstellationHighlight(rc, constFadeAlphas, constByAbbr, data.hip);
-  if (!portfolioMode) renderSelection(rc, selectedObject);
-  if (!portfolioMode) renderHorizon(rc);
-  if (!portfolioMode) renderCardinals(rc);
-  planetScreenBuf = renderPlanets(rc, getCachedPlanets());
-  renderSun(rc, getCachedSun());
-  moonScreenPos = renderMoon(rc, getCachedMoon(), getCachedSun());
-  if (!portfolioMode) constLabelScreen = renderLabels(rc, data.constellations, data.dsos, constFadeAlphas, toggles.constellations);
+  if (cacheable) {
+    const key = layerCacheKey(lstDeg);
+    if (_layerCache.key !== key) rebuildLayerCache(key, lstDeg, scale, vf);
+    ctx.drawImage(_layerCache.under, 0, 0, W, H);
+    dsoScreenBuf = _layerCache.dsoBuf;
+
+    starScreenCount = renderStars(rc, data.stars, starScreenBuf, false);
+    renderSelection(rc, selectedObject);
+    drawSelectedDsoPulse();
+    renderHorizon(rc);
+    renderCardinals(rc);
+    planetScreenBuf = renderPlanets(rc, getCachedPlanets());
+    renderSun(rc, getCachedSun());
+    moonScreenPos = renderMoon(rc, getCachedMoon(), getCachedSun());
+    ctx.drawImage(_layerCache.over, 0, 0, W, H);
+    constLabelScreen = _layerCache.labelBuf;
+  } else {
+    // Background layers
+    if (!portfolioMode) renderMilkyWay(rc);
+    if (!portfolioMode) renderTwilight(rc, lstDeg, getCachedSun());
+    if (!portfolioMode && overlays.altAzGrid) renderAltAzGrid(rc);
+    if (!portfolioMode && overlays.eqGrid) renderEqGrid(rc);
+    if (!portfolioMode && overlays.ecliptic) { renderZodiacBand(rc); renderEcliptic(rc); }
+
+    // Sky objects (return screen buffers for hit testing)
+    if (!portfolioMode) dsoScreenBuf = renderDSOs(rc, data.dsos, selectedObject);
+    renderConstellationLines(rc, data.constellations, constFadeAlphas, toggles.constellations);
+    starScreenCount = renderStars(rc, data.stars, starScreenBuf, portfolioMode);
+    if (!portfolioMode) renderConstellationHighlight(rc, constFadeAlphas, constByAbbr, data.hip);
+    if (!portfolioMode) renderSelection(rc, selectedObject);
+    if (!portfolioMode) renderHorizon(rc);
+    if (!portfolioMode) renderCardinals(rc);
+    planetScreenBuf = renderPlanets(rc, getCachedPlanets());
+    renderSun(rc, getCachedSun());
+    moonScreenPos = renderMoon(rc, getCachedMoon(), getCachedSun());
+    if (!portfolioMode) constLabelScreen = renderLabels(rc, data.constellations, data.dsos, constFadeAlphas, toggles.constellations);
+  }
 
   // UI updates (skip in portfolio mode)
   if (!portfolioMode) {
@@ -240,18 +331,52 @@ function render() {
 }
 
 let _lastRenderTime = 0;
+let _lastSceneSig = '';
+
+// Cheap scene fingerprint — when it's unchanged and nothing is animating,
+// the only frame-to-frame difference is star twinkle / selection pulse.
+function sceneSignature() {
+  return view.az.toFixed(4) + ',' + view.alt.toFixed(4) + ',' + view.fov.toFixed(3) +
+    ',' + W + 'x' + H +
+    ',' + (hoveredConst || '') + ',' + (clickedConst || '') +
+    ',' + (selectedObject ? (selectedObject.name || selectedObject.type || 's') : '') +
+    ',' + overlays.altAzGrid + overlays.eqGrid + overlays.ecliptic + toggles.constellations;
+}
 
 function frame(timestamp) {
   _frameId = requestAnimationFrame(frame);
-  if (portfolioMode && _lastRenderTime) {
-    // Decorative background only: 10 fps keeps the slow sky drift and star
-    // twinkle moving in sub-pixel steps (smooth to the eye) while doing a
-    // third of the frame work of the old 15 fps — and each frame is itself
-    // cheap (see renderStars). Reduced-motion users keep a static first
-    // frame. Exploration mode renders at full rAF rate for smooth input.
-    if (reducedMotion) return;
-    if (timestamp - _lastRenderTime < 100) return;
+  const elapsed = timestamp - _lastRenderTime;
+
+  if (portfolioMode) {
+    // Decorative background: ~10 fps keeps the slow sky drift and twinkle
+    // moving in sub-pixel steps (smooth to the eye) at a fraction of full-
+    // rate cost. Reduced-motion users keep a static first frame.
+    if (_lastRenderTime) {
+      if (reducedMotion) return;
+      if (elapsed < 100) return;
+    }
+  } else {
+    // Exploration: cap at ~30 fps while interacting (drag/pan/zoom/time/fades
+    // — twinkle stays smooth), drop to ~10 fps when the scene is static and
+    // only twinkle/pulse animate, and go fully still under reduced motion
+    // (twinkle and pulses are already disabled there).
+    let anyFade = false;
+    for (const k in constFadeAlphas) { anyFade = true; break; }
+    // Live time (speed 1) moves the sky sub-pixel per frame — not animation.
+    // Only fast time-travel (|speed| > 1) needs the interactive rate.
+    const animating = drag.active || viewTarget !== null || anyFade ||
+                      Math.abs(getTimeState().timeSpeed) > 1;
+    const sig = sceneSignature();
+    if (animating || sig !== _lastSceneSig) {
+      if (elapsed < 33) return;
+    } else if (reducedMotion) {
+      if (_lastRenderTime) return;
+    } else if (elapsed < 100) {
+      return;
+    }
+    _lastSceneSig = sig;
   }
+
   _lastRenderTime = timestamp;
   render();
 }
@@ -298,19 +423,29 @@ async function init() {
   //   s[6] = "r,g,b" string   s[7] = radius   s[8] = base alpha
   //   s[9] = full canvas fillStyle — paired with globalAlpha, this makes the
   //          star loop allocation-free (no rgba template string per star)
+  //   s[10..12] = sin(dec), cos(dec)cos(ra), cos(dec)sin(ra) — lets the render
+  //          loop project with zero trig calls (see camera.js projectStarPre)
   for (const s of data.stars) {
     s[6] = bvToColor(s[3]);
     s[7] = magToRadius(s[2]);
     s[8] = magToAlpha(s[2]);
     s[9] = `rgb(${s[6]})`;
+    const pre = precomputeEq(s[0], s[1]);
+    s[10] = pre[0]; s[11] = pre[1]; s[12] = pre[2];
   }
 
+  // Constellation line segments store precomputed projection terms for both
+  // endpoints (see projectStarPre) — 6 numbers per segment.
   for (const c of data.constellations) {
     c.resolvedLines = [];
     for (const pair of c.lines) {
       const s1 = data.hip[String(pair[0])];
       const s2 = data.hip[String(pair[1])];
-      if (s1 && s2) c.resolvedLines.push([s1[0], s1[1], s2[0], s2[1]]);
+      if (s1 && s2) {
+        const a = precomputeEq(s1[0], s1[1]);
+        const b = precomputeEq(s2[0], s2[1]);
+        c.resolvedLines.push([a[0], a[1], a[2], b[0], b[1], b[2]]);
+      }
     }
   }
 
@@ -345,6 +480,8 @@ function ensureInputSetup() {
       setSelectedObject: (o) => { selectedObject = o; },
       setClickedConst: (c) => { clickedConst = c; },
       setHoveredConst: (h) => { hoveredConst = h; },
+      isViewerActive: () => !portfolioMode,
+      hasSelection: () => !!(selectedObject || clickedConst),
       onResize: resize,
       getScreenState: () => ({
         starScreenBuf, starScreenCount, planetScreenBuf, moonScreenPos,
@@ -357,6 +494,7 @@ function ensureInputSetup() {
 export function setPortfolioMode(enabled) {
   portfolioMode = enabled;
   _lastRenderTime = 0; // render one immediate frame in the new mode's layer set
+  _lastSceneSig = '';
   if (enabled) {
     selectedObject = null;
     clickedConst = null;

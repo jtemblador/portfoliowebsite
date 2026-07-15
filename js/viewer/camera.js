@@ -25,7 +25,7 @@ import { D2R, ALT_MIN, ALT_MAX, SIN_LAT, COS_LAT } from './config.js';
  *   Up      = Right × Forward (tilts toward zenith)
  */
 export function buildViewFrame(altDeg, azDeg, lstDeg) {
-  const altR = altDeg * D2R, azR = azDeg * D2R;
+  const altR = altDeg * D2R, azR = azDeg * D2R, lstR = lstDeg * D2R;
   const sinAz = Math.sin(azR), cosAz = Math.cos(azR);
   const sinAlt = Math.sin(altR), cosAlt = Math.cos(altR);
   return {
@@ -33,14 +33,22 @@ export function buildViewFrame(altDeg, azDeg, lstDeg) {
     uX: -sinAz * sinAlt, uY: -cosAz * sinAlt, uZ: cosAlt,   // Up vector
     fX: sinAz * cosAlt, fY: cosAz * cosAlt, fZ: sinAlt,      // Forward vector
     lstDeg,
+    cosLst: Math.cos(lstR), sinLst: Math.sin(lstR),          // for projectStarPre
   };
 }
 
+// Reusable scratch results — projection runs up to ~17k times per frame, so
+// returning a fresh object per call would allocate megabytes/sec of garbage.
+// Callers that need two live results at once (line segments) pass their own.
+const _out = { x: 0, y: 0, cosAngle: 0, belowHorizon: false };
+const _outHz = { x: 0, y: 0, cosAngle: 0 };
+
 /**
  * Project a sky point from RA/Dec to camera-frame screen space.
- * Returns { x, y, cosAngle, belowHorizon } or null if behind the viewer.
+ * Returns the (reused!) result object or null if behind the viewer.
+ * Pass `out` when holding more than one result at a time.
  */
-export function projectStar(ra, dec, viewFrame) {
+export function projectStar(ra, dec, viewFrame, out = _out) {
   const H = (viewFrame.lstDeg - ra * 15) * D2R;
   const decR = dec * D2R;
   const sd = Math.sin(decR), cd = Math.cos(decR);
@@ -59,7 +67,44 @@ export function projectStar(ra, dec, viewFrame) {
   // Stereographic projection
   const D = 1 + cosA;
   if (D < 0.001) return null;
-  return { x: camX / D, y: camY / D, cosAngle: cosA, belowHorizon: zHz < 0 };
+  out.x = camX / D; out.y = camY / D;
+  out.cosAngle = cosA; out.belowHorizon = zHz < 0;
+  return out;
+}
+
+/**
+ * Zero-trig projection for points with precomputed equatorial terms:
+ *   sd = sin(dec),  cdcr = cos(dec)·cos(ra·15°),  cdsr = cos(dec)·sin(ra·15°)
+ * The hour-angle rotation folds into the view frame's cosLst/sinLst, so the
+ * per-point cost is pure multiply-adds. `cullCos` rejects points outside the
+ * field of view before the projection divide.
+ */
+export function projectStarPre(sd, cdcr, cdsr, viewFrame, cullCos, out = _out) {
+  // cd·cos(H) and cd·sin(H) via angle-difference identities (H = lst − ra15)
+  const cdch = viewFrame.cosLst * cdcr + viewFrame.sinLst * cdsr;
+  const cdsh = viewFrame.sinLst * cdcr - viewFrame.cosLst * cdsr;
+
+  const xHz = -cdsh;
+  const yHz = COS_LAT * sd - SIN_LAT * cdch;
+  const zHz = SIN_LAT * sd + COS_LAT * cdch;
+
+  const cosA = xHz * viewFrame.fX + yHz * viewFrame.fY + zHz * viewFrame.fZ;
+  if (cosA < cullCos) return null;
+
+  const D = 1 + cosA;
+  if (D < 0.001) return null;
+  const camX = xHz * viewFrame.rX + yHz * viewFrame.rY;
+  const camY = xHz * viewFrame.uX + yHz * viewFrame.uY + zHz * viewFrame.uZ;
+  out.x = camX / D; out.y = camY / D;
+  out.cosAngle = cosA; out.belowHorizon = zHz < 0;
+  return out;
+}
+
+/** Precompute the three projectStarPre terms for a fixed RA/Dec point. */
+export function precomputeEq(ra, dec) {
+  const raR = ra * 15 * D2R, decR = dec * D2R;
+  const cd = Math.cos(decR);
+  return [Math.sin(decR), cd * Math.cos(raR), cd * Math.sin(raR)];
 }
 
 /**
@@ -78,7 +123,7 @@ export function applyDragRotation(alt, az, dx, dy, degPerPx) {
   return { alt: newAlt, az: newAz };
 }
 
-export function projectHzPoint(alt, az, viewFrame) {
+export function projectHzPoint(alt, az, viewFrame, out = _outHz) {
   const altR = alt * D2R, azR = az * D2R;
   const xHz = Math.cos(altR) * Math.sin(azR);
   const yHz = Math.cos(altR) * Math.cos(azR);
@@ -88,5 +133,6 @@ export function projectHzPoint(alt, az, viewFrame) {
   const cosA = xHz * viewFrame.fX + yHz * viewFrame.fY + zHz * viewFrame.fZ;
   const D = 1 + cosA;
   if (D < 0.001) return null;
-  return { x: camX / D, y: camY / D, cosAngle: cosA };
+  out.x = camX / D; out.y = camY / D; out.cosAngle = cosA;
+  return out;
 }

@@ -8,7 +8,7 @@
  */
 
 import { D2R, R2D, LAT_LA, OBLIQUITY } from './config.js';
-import { projectStar, projectHzPoint } from './camera.js';
+import { projectStar, projectStarPre, projectHzPoint, precomputeEq } from './camera.js';
 import { eqToHz } from '../sky/time.js';
 
 // --- Milky Way (module-private init-time data) ---
@@ -20,6 +20,7 @@ let milkyWayPoints = null;
  * Called once at init — the module owns this data.
  */
 export function initMilkyWay(waypoints) {
+  if (!waypoints || waypoints.length < 4) return; // Catmull-Rom needs 4 points; missing data must not abort init
   const wp = (waypoints[0].ra === waypoints[waypoints.length - 1].ra &&
               waypoints[0].dec === waypoints[waypoints.length - 1].dec)
     ? waypoints.slice(0, -1) : waypoints;
@@ -34,8 +35,8 @@ export function initMilkyWay(waypoints) {
       const w = b.width + (c.width - b.width) * t;
       const seed = ((i * STEPS + s) * 2654435761) >>> 0;
       const rA = ((seed&0xFFFF)/0xFFFF-0.5), rD = (((seed>>>16)&0xFFFF)/0xFFFF-0.5);
-      pts.push({ra, dec, width: w*0.5});
-      pts.push({ra: ra+rA*w*0.02, dec: dec+rD*w*0.3, width: w*0.3});
+      pts.push({pre: precomputeEq(ra, dec), width: w*0.5});
+      pts.push({pre: precomputeEq(ra+rA*w*0.02, dec+rD*w*0.3), width: w*0.3});
     }
   }
   milkyWayPoints = pts;
@@ -46,8 +47,9 @@ export function renderMilkyWay(rc) {
   const { ctx, cx, cy, scale, vf, fov } = rc;
   ctx.fillStyle = 'rgba(180,180,210,0.012)';
   for (const pt of milkyWayPoints) {
-    const p = projectStar(pt.ra, pt.dec, vf);
-    if (!p || p.cosAngle < Math.cos((fov/2+pt.width)*D2R)) continue;
+    const p = projectStarPre(pt.pre[0], pt.pre[1], pt.pre[2], vf,
+                             Math.cos((fov/2+pt.width)*D2R));
+    if (!p) continue;
     const px = cx + p.x * scale, py = cy - p.y * scale;
     ctx.beginPath(); ctx.arc(px, py, pt.width*D2R*scale, 0, Math.PI*2); ctx.fill();
   }
@@ -120,41 +122,47 @@ export function renderEqGrid(rc) {
   }
 }
 
+// The ecliptic and zodiac-band rings are fixed curves in RA/Dec — precompute
+// their projection terms once instead of doing atan2/asin×1083 every frame.
+function buildEclRing(eclLatDeg) {
+  const oblR = OBLIQUITY * D2R, eclLat = eclLatDeg * D2R;
+  const sinB = Math.sin(eclLat), cosB = Math.cos(eclLat);
+  const ring = [];
+  for (let i = 0; i <= 360; i++) {
+    const lamR = i * D2R;
+    const sinLam = Math.sin(lamR), cosLam = Math.cos(lamR);
+    const x = cosB * cosLam;
+    const y = cosB * sinLam * Math.cos(oblR) - sinB * Math.sin(oblR);
+    const z = cosB * sinLam * Math.sin(oblR) + sinB * Math.cos(oblR);
+    const ra = ((Math.atan2(y, x) * R2D + 360) % 360) / 15;
+    const dec = Math.asin(Math.max(-1, Math.min(1, z))) * R2D;
+    ring.push(precomputeEq(ra, dec));
+  }
+  return ring;
+}
+let _eclRing = null, _zodiacRings = null;
+const NO_CULL = -2; // drawGridLine culls on cosAngle itself
+
 export function renderEcliptic(rc) {
   const { ctx, cx, cy, scale, vf } = rc;
-  const oblR = OBLIQUITY * D2R;
+  if (!_eclRing) _eclRing = buildEclRing(0);
   ctx.strokeStyle = 'rgba(200,200,100,0.35)'; ctx.lineWidth = 1.0;
   ctx.setLineDash([6, 4]);
   ctx.beginPath();
-  drawGridLine(ctx, cx, cy, 361, i => {
-    const lamR = i * D2R;
-    return projectStar(((Math.atan2(Math.sin(lamR)*Math.cos(oblR), Math.cos(lamR))*R2D+360)%360)/15,
-                       Math.asin(Math.sin(lamR)*Math.sin(oblR))*R2D, vf);
-  }, scale);
+  drawGridLine(ctx, cx, cy, 361,
+    i => { const t = _eclRing[i]; return projectStarPre(t[0], t[1], t[2], vf, NO_CULL); }, scale);
   ctx.stroke(); ctx.setLineDash([]);
 }
 
 export function renderZodiacBand(rc) {
   const { ctx, cx, cy, scale, vf } = rc;
-  const oblR = OBLIQUITY * D2R;
-  const BAND_HALF = 9;
-
-  for (const offset of [BAND_HALF, -BAND_HALF]) {
+  if (!_zodiacRings) _zodiacRings = [buildEclRing(9), buildEclRing(-9)];
+  for (const ring of _zodiacRings) {
     ctx.strokeStyle = 'rgba(40,120,200,0.18)';
     ctx.lineWidth = 0.8;
     ctx.beginPath();
-    drawGridLine(ctx, cx, cy, 361, i => {
-      const lamR = i * D2R;
-      const eclLat = offset * D2R;
-      const sinLam = Math.sin(lamR), cosLam = Math.cos(lamR);
-      const sinB = Math.sin(eclLat), cosB = Math.cos(eclLat);
-      const x = cosB * cosLam;
-      const y = cosB * sinLam * Math.cos(oblR) - sinB * Math.sin(oblR);
-      const z = cosB * sinLam * Math.sin(oblR) + sinB * Math.cos(oblR);
-      const ra = ((Math.atan2(y, x) * R2D + 360) % 360) / 15;
-      const dec = Math.asin(Math.max(-1, Math.min(1, z))) * R2D;
-      return projectStar(ra, dec, vf);
-    }, scale);
+    drawGridLine(ctx, cx, cy, 361,
+      i => { const t = ring[i]; return projectStarPre(t[0], t[1], t[2], vf, NO_CULL); }, scale);
     ctx.stroke();
   }
 }
