@@ -24,7 +24,7 @@ export function initMilkyWay(waypoints) {
   const wp = (waypoints[0].ra === waypoints[waypoints.length - 1].ra &&
               waypoints[0].dec === waypoints[waypoints.length - 1].dec)
     ? waypoints.slice(0, -1) : waypoints;
-  // 4 interpolation steps (halved from 8) — cuts ~240 draw calls/frame
+  // 4 interpolation steps (halved from 8) — cuts ~168 draw calls/frame
   const pts = [], n = wp.length, STEPS = 4;
   for (let i = 0; i < n; i++) {
     const a = wp[(i-1+n)%n], b = wp[i], c = wp[(i+1)%n], d = wp[(i+2)%n];
@@ -58,6 +58,7 @@ export function renderMilkyWay(rc) {
 // --- Twilight glow ---
 
 export function renderTwilight(rc, lstDeg, cachedSun) {
+  if (!cachedSun) return;
   const { ctx, cx, cy, scale, vf } = rc;
   const sunHz = eqToHz(cachedSun.ra, cachedSun.dec, lstDeg, LAT_LA);
 

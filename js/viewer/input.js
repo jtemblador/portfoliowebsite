@@ -77,7 +77,10 @@ function toggleHelp(force) {
 function setupHelp() {
   const btn = document.getElementById('help-btn');
   if (btn) btn.addEventListener('click', () => toggleHelp());
-  // First visit: show the controls once so newcomers know how to explore
+  // First visit: show the controls once so newcomers know how to explore.
+  // Only mark as seen where the panel exists — the standalone starfield.html
+  // has no help markup and must not consume the main page's one-time show.
+  if (!document.getElementById('help-panel')) return;
   try {
     if (!localStorage.getItem('viewerHelpSeen')) {
       toggleHelp(true);
@@ -114,12 +117,22 @@ function setupOverlayMenu() {
  *   canvas    = <canvas> element
  *   getSize   = () => { W, H }
  *
- * @param {Object} callbacks - One-way notifications back to the app:
+ * @param {Object} callbacks - Notifications and queries back to the app:
  *   setViewTarget(target)       — set animated pan target
  *   setSelectedObject(obj)      — set selected sky object
  *   setClickedConst(abbr)       — set clicked constellation
  *   setHoveredConst(abbr)       — set hovered constellation
  *   getScreenState()            — read ephemeral screen buffers
+ *   isViewerActive()            — query: exploration mode active? (guards all
+ *                                 window-level listeners in portfolio mode)
+ *   hasSelection()              — query: is anything selected? (Esc precedence)
+ *   applyZoom(x, y, newFov)     — cursor-anchored FOV change
+ *   startInertia(vx, vy)        — begin fling deceleration (px/s)
+ *   stopInertia()               — cancel any active fling
+ *   onResize()                  — window resize passthrough
+ *
+ * Exiting the viewer is requested via a window 'viewer-exit' CustomEvent
+ * (listened for in main.js) since input.js has no handle on the page shell.
  */
 export function setupInput(state, callbacks) {
   const { view, drag, overlays, toggles, canvas } = state;
@@ -145,6 +158,7 @@ export function setupInput(state, callbacks) {
 
   function hoverScan() {
     hoverRaf = 0;
+    if (!callbacks.isViewerActive()) return; // scan scheduled just before exit
     const { starScreenBuf, starScreenCount, constLabelScreen, data, hipToConst } = callbacks.getScreenState();
     let found = null;
     const nearStar = findNearestStar(hoverX, hoverY, 20, starScreenBuf, starScreenCount, data.stars);
@@ -188,6 +202,7 @@ export function setupInput(state, callbacks) {
     const wasDrag = drag.active;
     drag.active = false;
     canvas.style.cursor = 'grab';
+    if (!callbacks.isViewerActive()) return; // released after exiting the viewer
 
     if (wasDrag) {
       const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
