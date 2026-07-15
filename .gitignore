@@ -5,6 +5,7 @@
 .claude/
 .codex
 .superpowers/
+docs/superpowers/
 .playwright-mcp/
 prompt.md
 

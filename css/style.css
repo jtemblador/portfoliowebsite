@@ -30,7 +30,6 @@ img { max-width: 100%; display: block; }
   --toggle-border: #4a5568;
   --highlight-rgb: 29, 78, 216;
   --highlight-alpha: 0.25;
-  --demo-popup-bg: #1a334d;
   --glow-r: 74; --glow-g: 222; --glow-b: 128;
   --sidebar-border: rgba(74, 222, 128, 0.12);
   --card-border-hover: rgba(74, 222, 128, 0.35);
@@ -61,7 +60,6 @@ html[data-theme="light"] {
   --toggle-border: #5A3A2E;
   --highlight-rgb: 198, 90, 46;
   --highlight-alpha: 0.15;
-  --demo-popup-bg: #5A3A2E;
   --glow-r: 198; --glow-g: 90; --glow-b: 46;
   --sidebar-border: rgba(198, 90, 46, 0.2);
   --card-border-hover: rgba(198, 90, 46, 0.4);
@@ -190,16 +188,6 @@ html[data-theme="light"] .sidebar h1 { color: #ffe1a6; }
   opacity: 0.85;
 }
 html[data-theme="light"] .sidebar h2 { color: var(--accent); opacity: 1; }
-
-.sidebar .tagline {
-  margin-bottom: 3rem;
-  max-width: 20rem;
-  font-weight: 400;
-  font-size: 0.95rem;
-  line-height: 1.7;
-  color: var(--text-body);
-}
-html[data-theme="light"] .sidebar .tagline { color: var(--text-sidebar-sub); }
 
 /* Nav */
 .sidebar nav {
@@ -525,20 +513,18 @@ html[data-theme="light"] .open-to-work { color: #ffe1a6; opacity: 0.85; }
   display: flex;
   gap: 1rem;
 }
-.project-links a, .project-links .demo-trigger {
+.project-links a {
   color: var(--accent);
   font-family: inherit;
   font-size: inherit;
   transition: color 0.2s;
   cursor: pointer;
 }
-.project-links a:hover, .project-links .demo-trigger:hover {
+.project-links a:hover {
   color: var(--accent-hover);
 }
 html[data-theme="light"] .project-links a { color: var(--accent-dim); }
 html[data-theme="light"] .project-links a:hover { color: var(--accent); }
-html[data-theme="light"] .project-links .demo-trigger { color: var(--accent-dim); }
-html[data-theme="light"] .project-links .demo-trigger:hover { color: var(--accent); }
 
 /* "Visit Website" call-to-action button — a real button (not a plain link)
    so it reads as clickable at a glance; dim at rest, brightens and scales
@@ -564,23 +550,6 @@ html[data-theme="light"] .project-links .demo-trigger:hover { color: var(--accen
   transform: scale(1.04);
 }
 html[data-theme="light"] .project-links .visit-btn { color: var(--accent); border-color: var(--accent); }
-
-/* Demo popup */
-.demo-wrapper { position: relative; }
-.demo-popup {
-  display: none;
-  position: absolute;
-  left: 0;
-  top: 100%;
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-  z-index: 10;
-  background-color: var(--demo-popup-bg);
-}
-.demo-wrapper:hover .demo-popup { display: block; }
-.demo-popup img { max-width: 300px; border-radius: 0.25rem; }
 
 /* ===== Animated Underline Links ===== */
 .arrow-link {
@@ -656,13 +625,12 @@ html[data-theme="light"] .project-links .visit-btn { color: var(--accent); borde
     align-items: center;
   }
 
-  .sidebar h1, .sidebar h2, .sidebar .tagline { text-align: center; }
-  .sidebar .tagline { max-width: 100%; margin-bottom: 0; }
+  .sidebar h1, .sidebar h2 { text-align: center; }
 
   /* Hide the nav links on mobile (page scrolls linearly) */
   .sidebar nav { display: none; }
 
-  /* Sidebar footer sits right below tagline, centered */
+  /* Sidebar footer sits right below the heading block, centered */
   .sidebar-footer { margin-top: 0.5rem; margin-bottom: 0; align-items: center; }
 
   /* Main content full width */
