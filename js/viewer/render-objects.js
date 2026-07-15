@@ -70,19 +70,23 @@ export function renderStars(rc, stars, screenBuf, portfolioMode) {
       );
     }
 
-    // Canvas rgba() accepts raw floats — avoids ~5k toFixed() string allocs/frame
-    const rgb = s[6];                                 // precomputed color
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${rgb},${a})`;
-    ctx.fill();
+    // globalAlpha + precomputed fillStyle keeps this loop allocation-free.
+    // Tiny stars render as squares — indistinguishable below ~1.3px radius
+    // and much cheaper than beginPath/arc/fill.
+    ctx.globalAlpha = a;
+    ctx.fillStyle = s[9];                             // precomputed 'rgb(...)'
+    if (r < 1.3) {
+      ctx.fillRect(px - r, py - r, r + r, r + r);
+    } else {
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     if (mag < 2.0 && !p.belowHorizon) {
       const glowR = r * 5;
-      const sprite = getGlowSprite(rgb);
-      ctx.globalAlpha = a;
+      const sprite = getGlowSprite(s[6]);
       ctx.drawImage(sprite, px - glowR, py - glowR, glowR * 2, glowR * 2);
-      ctx.globalAlpha = 1;
     }
 
     const bi = count * 3;
@@ -91,6 +95,7 @@ export function renderStars(rc, stars, screenBuf, portfolioMode) {
     count++;
   }
 
+  ctx.globalAlpha = 1;
   return count;
 }
 
