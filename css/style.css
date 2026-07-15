@@ -541,7 +541,9 @@ html[data-theme="light"] .project-links .demo-trigger { color: var(--accent-dim)
 html[data-theme="light"] .project-links .demo-trigger:hover { color: var(--accent); }
 
 /* "Visit Website" call-to-action button — a real button (not a plain link)
-   so it reads as clickable at a glance; lights up on hover with a glow. */
+   so it reads as clickable at a glance; dim at rest, brightens and scales
+   up on hover. Uses opacity (not --accent-dim) to stay legible in dark
+   mode, where --accent-dim is a near-black fill tone, not a text tone. */
 .project-links .visit-btn {
   display: inline-flex;
   align-items: center;
@@ -554,18 +556,14 @@ html[data-theme="light"] .project-links .demo-trigger:hover { color: var(--accen
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+  opacity: 0.7;
+  transition: opacity 0.2s ease, transform 0.15s ease;
 }
 .project-links .visit-btn:hover {
-  background-color: var(--accent);
-  color: #050510;
-  transform: translateY(-1px);
-  box-shadow:
-    0 0 12px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.7),
-    0 0 24px rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.4);
+  opacity: 1;
+  transform: scale(1.04);
 }
-html[data-theme="light"] .project-links .visit-btn { color: var(--accent-dim); border-color: var(--accent-dim); }
-html[data-theme="light"] .project-links .visit-btn:hover { color: #050510; border-color: var(--accent); }
+html[data-theme="light"] .project-links .visit-btn { color: var(--accent); border-color: var(--accent); }
 
 /* Demo popup */
 .demo-wrapper { position: relative; }
