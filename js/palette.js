@@ -45,7 +45,7 @@ document.addEventListener('click', (e) => {
 }, { capture: true, passive: true });
 
 // star viewer sessions
-document.getElementById('explore-btn')?.addEventListener('click', () => { viewerT0 = Date.now(); send('viewer_enter'); });
+window.addEventListener('viewer-enter', () => { viewerT0 = Date.now(); send('viewer_enter'); });
 const viewerDone = () => { if (viewerT0) { send('viewer_exit', String(Math.round((Date.now() - viewerT0) / 1000))); viewerT0 = 0; } };
 document.getElementById('back-btn')?.addEventListener('click', viewerDone);
 window.addEventListener('viewer-exit', viewerDone);
@@ -54,12 +54,15 @@ window.addEventListener('viewer-exit', viewerDone);
 addEventListener('scroll', () => {
   interacted = true;
   const doc = document.documentElement;
-  const depth = (scrollY + innerHeight) / Math.max(1, doc.scrollHeight);
+  const depth = Math.min(1, (scrollY + innerHeight) / Math.max(1, doc.scrollHeight));
   maxScroll = Math.max(maxScroll, depth);
 }, { passive: true });
 
 // engagement summary — once, when the page is really going away
+let finished = false;
 addEventListener('pagehide', () => {
+  if (finished) return;
+  finished = true;
   const bucket = maxScroll >= 0.95 ? '100' : maxScroll >= 0.75 ? '75' : maxScroll >= 0.5 ? '50' : maxScroll >= 0.25 ? '25' : '0';
   if (bucket !== '0') send('scroll', bucket);
   const secs = Math.round((Date.now() - t0) / 1000);
