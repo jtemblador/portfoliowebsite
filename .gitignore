@@ -26,3 +26,6 @@ data/stellarium_western.json
 # Make sure these are NOT ignored
 !.github
 !.github/**
+
+# Analytics worker (deployed via wrangler, never published to Pages)
+analytics/

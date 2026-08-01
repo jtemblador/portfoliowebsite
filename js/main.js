@@ -5,6 +5,7 @@
  * and star viewer integration with portfolio/exploration mode toggle.
  */
 
+import './palette.js';
 import { init as initStarfield, startRenderer, stopRenderer, setPortfolioMode, ensureInputSetup } from './starfield.js';
 
 const html = document.documentElement;
