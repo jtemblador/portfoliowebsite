@@ -50,6 +50,7 @@ let _explorationMode = false;
 
 function enterExploration() {
   if (!_starfieldReady || _explorationMode) return;
+  window.dispatchEvent(new CustomEvent('viewer-enter'));
   _explorationMode = true;
   html.classList.add('exploring');
   clearTimeout(_bgSleepTimer);
