@@ -29,3 +29,6 @@ data/stellarium_western.json
 
 # Analytics worker (deployed via wrangler, never published to Pages)
 analytics/
+
+# stray npx artifacts (publish_dir is ./ — never let these become tracked)
+node_modules/
