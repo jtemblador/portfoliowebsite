@@ -17,13 +17,17 @@ import { isSearchOpen, openSearch, closeSearch } from './search.js';
 // --- Click handler ---
 
 function handleClick(clickX, clickY, state, callbacks) {
-  const { starScreenBuf, starScreenCount, planetScreenBuf, moonScreenPos, constLabelScreen, dsoScreenBuf, data, hipToConst } = callbacks.getScreenState();
+  // A click or tap on the sky dismisses the help panel (phones have no Esc)
+  if (isHelpOpen()) toggleHelp(false);
 
-  // Priority: Moon > Planets > DSOs > Constellation labels > Stars > Empty sky
+  const { starScreenBuf, starScreenCount, planetScreenBuf, satelliteScreenBuf, moonScreenPos, constLabelScreen, dsoScreenBuf, data, hipToConst } = callbacks.getScreenState();
+
+  // Priority: Moon > Planets > Satellites > DSOs > Constellation labels > Stars > Empty sky
 
   if (moonScreenPos) {
     const dx = moonScreenPos.px - clickX, dy = moonScreenPos.py - clickY;
-    if (dx * dx + dy * dy < 20 * 20) {
+    const hitR = Math.max(20, moonScreenPos.screenR);
+    if (dx * dx + dy * dy < hitR * hitR) {
       callbacks.setSelectedObject({ type: 'moon', ...moonScreenPos });
       callbacks.setClickedConst(null);
       return;
@@ -32,6 +36,9 @@ function handleClick(clickX, clickY, state, callbacks) {
 
   const planet = findNearestPlanet(clickX, clickY, 20, planetScreenBuf);
   if (planet) { callbacks.setSelectedObject(planet); callbacks.setClickedConst(null); return; }
+
+  const sat = findNearestPlanet(clickX, clickY, 16, satelliteScreenBuf || []);
+  if (sat) { callbacks.setSelectedObject({ ...sat, type: 'satellite' }); callbacks.setClickedConst(null); return; }
 
   const dso = findNearestDSO(clickX, clickY, 20, dsoScreenBuf);
   if (dso) { callbacks.setSelectedObject(dso); callbacks.setClickedConst(null); return; }
@@ -58,8 +65,10 @@ function syncOverlayButtons(overlays, toggles) {
     const el = document.getElementById(id);
     if (el) { el.classList.toggle('active', overlays[key]); el.setAttribute('aria-pressed', String(overlays[key])); }
   }
-  const btnConst = document.getElementById('btn-const');
-  if (btnConst) { btnConst.classList.toggle('active', toggles.constellations); btnConst.setAttribute('aria-pressed', String(toggles.constellations)); }
+  for (const [id, key] of [['btn-const', 'constellations'], ['btn-skyline', 'skyline'], ['btn-names', 'starNames'], ['btn-sats', 'satellites']]) {
+    const el = document.getElementById(id);
+    if (el) { el.classList.toggle('active', toggles[key]); el.setAttribute('aria-pressed', String(toggles[key])); }
+  }
 }
 
 // --- Help panel ---
@@ -132,7 +141,6 @@ function setupOverlayMenu() {
  *   applyZoom(x, y, newFov)     — cursor-anchored FOV change
  *   startInertia(vx, vy)        — begin fling deceleration (px/s)
  *   stopInertia()               — cancel any active fling
- *   onResize()                  — window resize passthrough
  *
  * Exiting the viewer is requested via a window 'viewer-exit' CustomEvent
  * (listened for in main.js) since input.js has no handle on the page shell.
@@ -240,6 +248,9 @@ export function setupInput(state, callbacks) {
     if (e.key === 'q' || e.key === 'Q') { overlays.eqGrid = !overlays.eqGrid; syncOverlayButtons(overlays, toggles); }
     if (e.key === 'e' || e.key === 'E') { overlays.ecliptic = !overlays.ecliptic; syncOverlayButtons(overlays, toggles); }
     if (e.key === 'c' || e.key === 'C') { toggles.constellations = !toggles.constellations; syncOverlayButtons(overlays, toggles); }
+    if (e.key === 'l' || e.key === 'L') { toggles.skyline = !toggles.skyline; syncOverlayButtons(overlays, toggles); }
+    if (e.key === 'n' || e.key === 'N') { toggles.starNames = !toggles.starNames; syncOverlayButtons(overlays, toggles); }
+    if (e.key === 's' || e.key === 'S') { toggles.satellites = !toggles.satellites; syncOverlayButtons(overlays, toggles); }
 
     const PAN_DEG = 2;
     if (e.key === 'ArrowUp')    { callbacks.setViewTarget(null); const nv = applyDragRotation(view.alt, view.az, 0, -1, PAN_DEG); view.alt = nv.alt; e.preventDefault(); }
@@ -271,7 +282,7 @@ export function setupInput(state, callbacks) {
 
   for (const [id, obj, key] of [
     ['btn-altaz', overlays, 'altAzGrid'], ['btn-eq', overlays, 'eqGrid'], ['btn-ecl', overlays, 'ecliptic'],
-    ['btn-const', toggles, 'constellations'],
+    ['btn-const', toggles, 'constellations'], ['btn-skyline', toggles, 'skyline'], ['btn-names', toggles, 'starNames'], ['btn-sats', toggles, 'satellites'],
   ]) {
     const el = document.getElementById(id);
     if (el) el.addEventListener('click', () => { obj[key] = !obj[key]; syncOverlayButtons(overlays, toggles); });
@@ -280,12 +291,22 @@ export function setupInput(state, callbacks) {
   // --- Touch ---
 
   let lastTouchDist = null, lastTouchX = null, lastTouchY = null;
+  let lastMidX = 0, lastMidY = 0;
   let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
   let touchVx = 0, touchVy = 0, lastTouchMoveT = 0;
+
+  // Pinch state: finger spread drives zoom, the midpoint drives pan
+  function seedPinch(t) {
+    lastTouchDist = Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    lastMidX = (t[0].clientX + t[1].clientX) / 2;
+    lastMidY = (t[0].clientY + t[1].clientY) / 2;
+  }
 
   canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     callbacks.stopInertia();
+    callbacks.setViewTarget(null); // a finger on the sky cancels a search fly-to, like mousedown
+    drag.active = true;            // same render path as a mouse drag (lighter Milky Way while moving)
     if (e.touches.length === 1) {
       lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
       touchStartX = lastTouchX; touchStartY = lastTouchY;
@@ -293,10 +314,7 @@ export function setupInput(state, callbacks) {
       lastTouchDist = null;
       touchVx = 0; touchVy = 0; lastTouchMoveT = 0;
     } else if (e.touches.length === 2) {
-      lastTouchDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY,
-      );
+      seedPinch(e.touches);
       touchStartTime = 0; // a pinch is never a tap
     }
   }, { passive: false });
@@ -323,16 +341,21 @@ export function setupInput(state, callbacks) {
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY,
       );
-      // Anchor the zoom on the pinch midpoint
       const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      // Pan with the midpoint, then zoom anchored on it, so the sky stays
+      // under both fingers even when only one of them moves
+      const { W, H } = state.getSize();
+      const nv = applyDragRotation(view.alt, view.az, midX - lastMidX, midY - lastMidY, view.fov / Math.min(W, H));
+      view.alt = nv.alt; view.az = nv.az;
       callbacks.applyZoom(midX, midY, view.fov * lastTouchDist / dist);
-      lastTouchDist = dist;
+      lastTouchDist = dist; lastMidX = midX; lastMidY = midY;
     }
   }, { passive: false });
 
   canvas.addEventListener('touchend', (e) => {
     if (e.touches.length < 2) lastTouchDist = null;
+    else if (e.touches.length === 2) seedPinch(e.touches); // 3 → 2 fingers: no jump
     if (e.touches.length === 1) {
       // Pinch → single-finger pan: reseed from the remaining finger so the
       // next touchmove doesn't jump from a stale pre-pinch position.
@@ -340,10 +363,18 @@ export function setupInput(state, callbacks) {
       touchVx = 0; touchVy = 0; lastTouchMoveT = 0;
     }
     if (e.touches.length < 1) {
+      drag.active = false;
       const dx = lastTouchX - touchStartX, dy = lastTouchY - touchStartY;
       const dt = performance.now() - touchStartTime;
       if (touchStartTime && Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) {
         handleClick(touchStartX, touchStartY, state, callbacks);
+        // preventDefault() on touchstart also swallows the tap's focus change
+        // and click, so "tap outside to close" never ran: blur the search box
+        // (drops the on-screen keyboard) and replay the click for the
+        // document-level close handlers (search panel, overlay menu).
+        const active = document.activeElement;
+        if (active && active !== document.body && active.blur) active.blur();
+        canvas.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: touchStartX, clientY: touchStartY }));
       } else if (performance.now() - lastTouchMoveT < 80 &&
                  Math.hypot(touchVx, touchVy) > 150) {
         callbacks.startInertia(touchVx, touchVy);
@@ -356,9 +387,8 @@ export function setupInput(state, callbacks) {
     // An interrupted gesture (system UI, notification) must not leave stale state
     lastTouchDist = null; lastTouchX = null; lastTouchY = null;
     touchVx = 0; touchVy = 0;
+    drag.active = false;
   });
-
-  window.addEventListener('resize', callbacks.onResize);
 
   // --- Overlay menu + help ---
   setupOverlayMenu();

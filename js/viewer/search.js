@@ -9,6 +9,7 @@
  */
 
 import { LAT_LA, LON_LA, ALT_MIN, ALT_MAX, D2R } from './config.js';
+import { getSatellite } from './satellites.js';
 import { getTimeState } from './controls.js';
 import { lst, eqToHz } from '../sky/time.js';
 
@@ -27,6 +28,11 @@ export function isSearchOpen() {
   return searchOpen;
 }
 
+/** Add satellites once their orbital data arrives (loaded after the catalog). */
+export function addSatellitesToIndex(sats) {
+  for (const s of sats) searchIndex.push({ name: s.name, type: 'satellite', id: s.id, ra: 0, dec: 0 });
+}
+
 /**
  * Build the searchable index from star catalog data and cached ephemeris.
  * Should be called once at init after data and ephemeris are loaded.
@@ -39,14 +45,17 @@ export function buildSearchIndex(data, cachedPlanets, cachedMoon) {
     searchIndex.push({ name: c.name, type: 'constellation', ra: c.label_ra, dec: c.label_dec, abbr: c.abbr });
   }
 
-  // Named stars (~393)
-  if (data.star_names) {
-    for (const hipID of Object.keys(data.star_names)) {
-      const info = data.star_names[hipID];
-      const pos = data.hip[hipID];
-      if (pos) searchIndex.push({ name: info.name, type: 'star', ra: pos[0], dec: pos[1], hipID });
-    }
-  }
+  // Stars by every name they carry (data.stars is magnitude-sorted, so
+  // brighter matches list first). Superscripts are also matched without:
+  // "alpha centauri" finds "Alpha¹ Centauri".
+  data.stars.forEach((s, idx) => {
+    const names = s[7].split(';');
+    const match = s[7].toLowerCase();
+    searchIndex.push({
+      name: names[0], alts: names.slice(1), type: 'star', ra: s[0], dec: s[1], idx,
+      match: match + ';' + match.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, ''),
+    });
+  });
 
   // Planets + Moon (from cached ephemeris)
   if (cachedPlanets) {
@@ -90,7 +99,7 @@ function updateSearchResults(query) {
 
   const q = query.toLowerCase();
   _searchMatches = searchIndex
-    .filter(e => e.name.toLowerCase().includes(q))
+    .filter(e => (e.match || e.name.toLowerCase()).includes(q))
     .sort((a, b) => {
       const aStart = a.name.toLowerCase().startsWith(q) ? 0 : 1;
       const bStart = b.name.toLowerCase().startsWith(q) ? 0 : 1;
@@ -104,8 +113,8 @@ function updateSearchResults(query) {
 function renderSearchResults(resultsEl) {
   resultsEl.innerHTML = _searchMatches.map((m, i) =>
     `<div class="search-result${i === _searchSelIdx ? ' selected' : ''}" data-idx="${i}">` +
-    `<span class="sr-type">${m.type === 'constellation' ? '*' : m.type === 'planet' ? 'P' : m.type === 'moon' ? 'M' : '.'}</span>` +
-    `<span class="sr-name">${m.name}</span>` +
+    `<span class="sr-type">${m.type === 'constellation' ? '*' : m.type === 'planet' ? 'P' : m.type === 'moon' ? 'M' : m.type === 'satellite' ? 'S' : '.'}</span>` +
+    `<span class="sr-name">${m.name}${m.alts?.length ? ` <span class="sr-alt">${m.alts[0]}</span>` : ''}</span>` +
     `<span class="sr-label">${m.type}</span>` +
     `</div>`
   ).join('');
@@ -139,16 +148,11 @@ function navigateToResult(result) {
     _callbacks.setViewTarget({ az: hz.az, alt: targetAlt });
 
   } else if (result.type === 'star') {
-    const pos = data.hip[result.hipID];
-    if (pos) {
-      const obj = { type: 'star', ra: pos[0], dec: pos[1], mag: 0, ci: null, dist: null, spect: null, px: cx, py: cy };
-      for (const s of data.stars) {
-        if (Math.abs(s[0] - pos[0]) < 0.0001 && Math.abs(s[1] - pos[1]) < 0.0001) {
-          obj.mag = s[2]; obj.ci = s[3]; obj.dist = s[4]; obj.spect = s[5]; break;
-        }
-      }
-      _callbacks.setSelectedObject(obj);
-    }
+    const s = data.stars[result.idx];
+    _callbacks.setSelectedObject({
+      type: 'star', ra: s[0], dec: s[1], mag: s[2], ci: s[3], dist: s[4], spect: s[5],
+      con: s[6], names: s[7], px: cx, py: cy,
+    });
     _callbacks.setClickedConst(null);
     _callbacks.setViewTarget({ az: hz.az, alt: targetAlt });
 
@@ -164,7 +168,7 @@ function navigateToResult(result) {
     const ra = cachedMoon?.ra ?? result.ra, dec = cachedMoon?.dec ?? result.dec;
     _callbacks.setSelectedObject({
       type: 'moon', name: 'Moon', ra, dec,
-      illumination: cachedMoon ? (1 + Math.cos(cachedMoon.elongation * D2R)) / 2 : 0.5,
+      illumination: cachedMoon ? cachedMoon.illumination : 0.5,
       elongation: cachedMoon?.elongation || 0, px: cx, py: cy,
     });
     const hzLive = eqToHz(ra, dec, lstDeg, LAT_LA);
@@ -175,6 +179,16 @@ function navigateToResult(result) {
     _callbacks.setSelectedObject({ type: 'dso', name: result.name, ra: result.ra, dec: result.dec, px: cx, py: cy });
     _callbacks.setClickedConst(null);
     _callbacks.setViewTarget({ az: hz.az, alt: targetAlt });
+
+  } else if (result.type === 'satellite') {
+    // Satellites move fast: aim at where it is now; the selection ring tracks it
+    const st = getSatellite(result.id);
+    _callbacks.setSelectedObject({ type: 'satellite', id: result.id, name: result.name, ra: 0, dec: 0, px: cx, py: cy });
+    _callbacks.setClickedConst(null);
+    if (st) {
+      const alt = Math.asin(st.hz) / D2R, az = (Math.atan2(st.hx, st.hy) / D2R + 360) % 360;
+      _callbacks.setViewTarget({ az, alt: Math.max(ALT_MIN, Math.min(ALT_MAX, alt)) });
+    }
   }
 }
 

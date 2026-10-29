@@ -47,6 +47,18 @@ export function bvToColor(ci) {
   return COLOR_LUT[Math.max(0, Math.min(255, Math.round((ci + 0.4) / 2.4 * 255)))];
 }
 
+/**
+ * Perceived star color: the eye loses color vision in dim light, so faint
+ * stars fade toward white while bright ones keep their full B-V tint.
+ * Saturation is quantized to 4 steps so glow sprites can be shared.
+ */
+export function starColor(ci, mag) {
+  const sat = Math.round(4 * Math.min(1, Math.max(0.25, (4.5 - mag) / 3))) / 4;
+  const [r, g, b] = bvToColor(ci).split(',').map(Number);
+  const mix = (c) => Math.round(255 + (c - 255) * sat);
+  return `${mix(r)},${mix(g)},${mix(b)}`;
+}
+
 // --- Magnitude → visual properties ---
 
 /** Star radius in CSS pixels based on apparent magnitude. */

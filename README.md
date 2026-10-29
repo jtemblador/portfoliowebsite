@@ -21,13 +21,13 @@ I'm a Computer Science graduate of California State University Dominguez Hills (
 
 ## How the Star Viewer Works
 
-The star catalog comes from the HYG v42 database (119,627 stars filtered to 15,598 at magnitude 7.0). A Python preprocessing pipeline combines it with Stellarium constellation data, 27 deep sky objects, and a Milky Way centerline path into a compact ~750 KB JSON file (regenerate it with `python scripts/process_stars.py` — it downloads the source catalogs on first run).
+The star catalog comes from the HYG v42 database (119,627 stars filtered to 15,598 at magnitude 7.0). A Python preprocessing pipeline combines it with Stellarium constellation data and 27 deep sky objects into a compact ~750 KB JSON file (regenerate it with `python scripts/process_stars.py` — it downloads the source catalogs on first run). The Milky Way glow is a 21 KB texture baked from the ESO/S. Brunier all-sky panorama with its stars removed (`python scripts/build_milkyway.py`). The horizon outline is the real skyline around the observer, ray-marched over AWS Terrain Tiles elevation data (`python scripts/build_horizon.py` — re-run after changing the location in `js/viewer/config.js`). Both scripts need Pillow + numpy.
 
-At runtime, planetary positions are computed using JPL Keplerian orbital elements. Sun and Moon positions come from simplified Meeus algorithms. All ephemeris data is cached and refreshed once per minute.
+At runtime, planetary positions are computed using JPL Keplerian orbital elements. In exploration mode the ISS and ~150 bright satellites are propagated live with SGP4 (vendored [satellite.js](https://github.com/shashwatak/satellite-js), MIT) from CelesTrak element sets, fetched on first use and cached for 12 hours. Sun and Moon positions come from simplified Meeus algorithms. All ephemeris data is cached and refreshed once per minute.
 
 The projection system uses a camera-frame stereographic projection in horizontal (Alt/Az) coordinates. This guarantees a flat horizon at all azimuths — the same approach used by planetarium software like Stellarium.
 
-The renderer is split into three layer groups (background, objects, overlays), each in its own module. In portfolio mode, only stars, Milky Way, planets, and constellation lines render. In exploration mode, all layers activate including grids, labels, DSOs, horizon, and interactive features.
+The renderer is split into three layer groups (background, objects, overlays), each in its own module. In portfolio mode, only stars, planets, the Moon, and constellation lines render. In exploration mode, all layers activate including grids, labels, DSOs, horizon, and interactive features.
 
 ## Built With
 

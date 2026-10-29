@@ -362,6 +362,9 @@
         <button id="btn-eq" title="Equatorial Grid (Q)" aria-pressed="false">Equatorial Grid</button>
         <button id="btn-ecl" class="active" title="Ecliptic (E)" aria-pressed="true">Ecliptic</button>
         <button id="btn-const" class="active" title="Constellations (C)" aria-pressed="true">Constellations</button>
+        <button id="btn-skyline" class="active" title="Skyline outline (L)" aria-pressed="true">Skyline</button>
+        <button id="btn-names" class="active" title="Star names (N)" aria-pressed="true">Star names</button>
+        <button id="btn-sats" class="active" title="Satellites (S)" aria-pressed="true">Satellites</button>
       </div>
     </div>
 
@@ -369,16 +372,27 @@
 
     <button id="help-btn" class="ctrl-btn" title="Help (?)" aria-label="Show controls help" aria-pressed="false">?</button>
     <div id="help-panel" role="dialog" aria-label="Star viewer controls">
-      <ul>
+      <ul class="help-keys">
         <li><b>Drag</b> or arrow keys &mdash; look around</li>
         <li><b>Scroll / pinch</b> or <b>+ &minus;</b> &mdash; zoom</li>
         <li><b>/</b> &mdash; search</li>
         <li><b>Space</b> &mdash; pause time</li>
         <li><b>&lt;&lt; &gt;&gt;</b> &mdash; time travel</li>
         <li><b>Now</b> &mdash; live</li>
-        <li><b>G Q E C</b> &mdash; grids &amp; overlays</li>
+        <li><b>G Q E C L N S</b> &mdash; grids, overlays, skyline, names &amp; satellites</li>
         <li><b>Esc</b> &mdash; close / exit</li>
       </ul>
+      <ul class="help-touch">
+        <li><b>Drag</b> &mdash; look around</li>
+        <li><b>Pinch</b> &mdash; zoom</li>
+        <li><b>Tap</b> a star, planet or the ISS &mdash; details</li>
+        <li><b>Search</b> &mdash; find any star, planet or satellite</li>
+        <li><b>&lt;&lt; &gt;&gt;</b> &mdash; time travel, <b>Now</b> &mdash; live</li>
+        <li><b>Overlays</b> &mdash; grids, names, skyline, satellites</li>
+        <li><b>&larr;</b> &mdash; back to the portfolio</li>
+        <li>Tap the sky to close this</li>
+      </ul>
+      <p class="help-credit">Milky Way: <a href="https://www.eso.org/public/images/eso0932a/" target="_blank" rel="noopener noreferrer">ESO/S. Brunier</a> (CC BY 4.0) &middot; Terrain: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener noreferrer">AWS Terrain Tiles</a> &middot; Satellites: <a href="https://celestrak.org" target="_blank" rel="noopener noreferrer">CelesTrak</a></p>
     </div>
 
     <button id="back-btn" title="Back to portfolio (Esc)" aria-label="Back to portfolio">

@@ -23,7 +23,7 @@ export const MAG_DIM    =  6.5;    // dimmest naked-eye magnitude
 export const R_MAX      =  5.5;    // brightest star radius (CSS px)
 export const R_MIN      =  0.8;    // dimmest star radius
 export const A_MAX      =  1.0;    // brightest star alpha
-export const A_MIN      =  0.15;   // dimmest star alpha
+export const A_MIN      =  0.3;    // dimmest star alpha
 
 // Field of view constraints (degrees)
 export const FOV_DEFAULT  =  90;
@@ -39,6 +39,7 @@ export const LABEL_FADE_DEG    =  6;    // angular band for edge label fade
 export const BELOW_HORIZON_DIM = 0.35;  // alpha multiplier below horizon
 export const MAG_FADE_BAND     = 0.5;   // smooth magnitude fade band
 export const OBLIQUITY         = 23.43928; // ecliptic obliquity (J2000, degrees)
+export const MW_INTENSITY      = 0.35;  // Milky Way glow strength (0–1)
 
 // Time control speed steps (negative = rewind)
 export const SPEED_STEPS = [-1000, -100, -10, -1, 0, 1, 10, 100, 1000];

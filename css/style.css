@@ -563,6 +563,23 @@ img { max-width: 100%; display: block; }
 /* ===== Bottom Spacer ===== */
 .bottom-spacer { padding-top: 7rem; }
 
+/* ===== Tablet / landscape phone ===== */
+/* Card headers wrap below desktop widths. Between 769 and ~950px the
+   OrbitWatch title's nowrap subtitle pushed the page ~120px wider than the
+   screen, so phones widened the layout viewport and every fixed element
+   (Explore button, viewer clock / controls) was clipped off the right edge. */
+@media (max-width: 1023px) {
+  .card-header { flex-wrap: wrap; gap: 0.5rem; }
+  .card-header span { white-space: normal; }
+}
+
+/* Short screens (landscape phones): the pinned sidebar is taller than the
+   viewport, so its nav, resume, socials and email sat below the fold
+   forever. Let it scroll with the page instead. */
+@media (max-height: 500px) {
+  .sidebar { position: static; max-height: none; align-self: flex-start; }
+}
+
 /* ===== Mobile ===== */
 @media (max-width: 768px) {
   /* Hide the fixed left-panel background */
@@ -605,9 +622,6 @@ img { max-width: 100%; display: block; }
   /* Shrink bottom spacer */
   .bottom-spacer { padding-top: 2rem; }
 
-  /* Card headers can wrap on small screens */
-  .card-header { flex-wrap: wrap; gap: 0.5rem; }
-  .card-header span { white-space: normal; }
 
   /* Theme toggle stays top-right, just ensure it doesn't overlap */
   .explore-toggle { top: 1rem; right: 1rem; padding: 0.45rem 0.8rem; }
@@ -631,8 +645,8 @@ img { max-width: 100%; display: block; }
 
 #back-btn {
   position: fixed;
-  top: 4.5rem;
-  right: 0.75rem;
+  top: calc(4.5rem + var(--sa-t, 0px));
+  right: calc(0.75rem + var(--sa-r, 0px));
   z-index: 20;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.15);
@@ -647,6 +661,16 @@ img { max-width: 100%; display: block; }
   transition: all 0.2s;
 }
 #back-btn:hover { color: #ccc; border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.1); }
+
+/* Touch: 44px target, clear of the clock's bottom edge */
+@media (max-width: 600px), (pointer: coarse) {
+  #back-btn { width: 44px; height: 44px; top: calc(5rem + var(--sa-t, 0px)); }
+}
+/* Phones: top-left, the usual back position — keeps the full-width object
+   popup and search panel (below the top row) from sliding under it */
+@media (max-width: 600px) {
+  #back-btn { top: calc(0.75rem + var(--sa-t, 0px)); left: calc(0.75rem + var(--sa-l, 0px)); right: auto; }
+}
 
 /* --- Mode transitions --- */
 

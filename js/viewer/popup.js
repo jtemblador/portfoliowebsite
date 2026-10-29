@@ -6,7 +6,8 @@
  * (only used here, so co-located rather than in a separate utils file).
  */
 
-import { D2R, LON_LA, LAT_LA } from './config.js';
+import { LON_LA, LAT_LA, D2R } from './config.js';
+import { getSatellite, satelliteStatus } from './satellites.js';
 import { bvToColor } from './visual.js';
 import { lst, eqToHz } from '../sky/time.js';
 
@@ -76,7 +77,7 @@ let _popupTarget = null;
  * @param {HTMLElement} popupEl - The popup DOM element
  * @param {Object|null} selectedObject - Currently selected star/planet/moon/dso
  * @param {string|null} clickedConst - Clicked constellation abbreviation
- * @param {Object} deps - Dependencies: { cachedPlanets, cachedSun, cachedMoon, constByAbbr, hipToConst, starNameLookup, timeOffsetMs }
+ * @param {Object} deps - Dependencies: { cachedPlanets, cachedMoon, constByAbbr, timeOffsetMs }
  */
 export function updatePopup(popupEl, selectedObject, clickedConst, deps) {
   if (!popupEl) return;
@@ -95,30 +96,29 @@ export function updatePopup(popupEl, selectedObject, clickedConst, deps) {
   }
 
   // For planets/Moon, include timestamp so popup refreshes once per second
-  const timeSuffix = (target.type === 'planet' || target.type === 'moon') ? ':' + Math.floor(Date.now() / 1000) : '';
+  const live = target.type === 'planet' || target.type === 'moon' || target.type === 'satellite';
+  const timeSuffix = live ? ':' + Math.floor(Date.now() / 1000) : '';
   const targetKey = target.type + ':' + (target.name || target.abbr || target.ra) + timeSuffix;
   if (_popupTarget === targetKey) return;
   _popupTarget = targetKey;
 
   let html = '';
-  const { cachedPlanets, cachedMoon, constByAbbr, hipToConst, starNameLookup, timeOffsetMs } = deps;
+  const { cachedPlanets, cachedMoon, constByAbbr, timeOffsetMs } = deps;
 
   // Helper: get current LST for Az/Alt computation
   const currentLst = () => lst((Date.now() + timeOffsetMs) / 86400000 + 2440587.5, LON_LA);
 
   if (target.type === 'star') {
-    const info = starNameLookup?.get(target.ra.toFixed(6) + ',' + target.dec.toFixed(5)) || null;
-    const name = info ? info.name : '\u2014';
-    const conAbbr = info ? info.con : (hipToConst?.get(target.ra.toFixed(6) + ',' + target.dec.toFixed(5))) || '\u2014';
-    const conName = conAbbr !== '\u2014' ? (constByAbbr?.get(conAbbr)?.name || conAbbr) : '\u2014';
+    // names: "primary;alternate;alternate", e.g. "Vega;α Lyrae;3 Lyrae"
+    const [name, ...alts] = (target.names || 'Star').split(';');
+    const conName = target.con ? (constByAbbr?.get(target.con)?.name || target.con) : '\u2014';
     const rgb = bvToColor(target.ci);
-    const dist = target.dist ?? info?.dist;
-    const spect = target.spect ?? info?.spect;
+    const spect = target.spect;
     const sColor = spectColor(spect);
-    html = `<div class="popup-name">${name !== '\u2014' ? name : 'Star'}</div>`
-      + `<div class="popup-type">Star</div>`
+    html = `<div class="popup-name">${name}</div>`
+      + `<div class="popup-type">${alts.length ? alts.join(' \u00b7 ') : 'Star'}</div>`
       + popupRow('Magnitude', target.mag.toFixed(2))
-      + popupRow('Distance', formatDist(dist))
+      + popupRow('Distance', formatDist(target.dist))
       + popupRow('Spectral Type', spect ? `<span style="color:${sColor}">${spect}</span>` : '\u2014')
       + popupRow('RA/Dec', formatRA(target.ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(target.dec))
       + popupRow('Constellation', conName)
@@ -141,12 +141,12 @@ export function updatePopup(popupEl, selectedObject, clickedConst, deps) {
     const moon = cachedMoon;
     const ra = moon?.ra ?? target.ra, dec = moon?.dec ?? target.dec;
     const hz = eqToHz(ra, dec, currentLst(), LAT_LA);
-    const k = moon ? (1 + Math.cos(moon.elongation * D2R)) / 2 : 0.5;
-    const pct = Math.round(k * 100);
+    const pct = Math.round((moon ? moon.illumination : 0.5) * 100);
+    const trend = moon?.waxing ? 'Waxing' : 'Waning';
     let phaseName = 'New Moon';
-    if (pct > 2 && pct < 48) phaseName = 'Waxing Crescent';
-    if (pct >= 48 && pct <= 52) phaseName = 'Quarter';
-    if (pct > 52 && pct < 98) phaseName = 'Gibbous';
+    if (pct > 2 && pct < 48) phaseName = `${trend} Crescent`;
+    if (pct >= 48 && pct <= 52) phaseName = moon?.waxing ? 'First Quarter' : 'Last Quarter';
+    if (pct > 52 && pct < 98) phaseName = `${trend} Gibbous`;
     if (pct >= 98) phaseName = 'Full Moon';
     html = `<div class="popup-name">Moon</div>`
       + `<div class="popup-type">${phaseName} (${pct}% illuminated)</div>`
@@ -161,6 +161,18 @@ export function updatePopup(popupEl, selectedObject, clickedConst, deps) {
       + `<div class="popup-type">Constellation (${target.abbr})</div>`
       + popupRow('Stars', String(starCount))
       + popupRow('Center RA/Dec', con ? formatRA(con.label_ra) + '&nbsp;&nbsp;&nbsp;' + formatDec(con.label_dec) : '\u2014');
+
+  } else if (target.type === 'satellite') {
+    const st = getSatellite(target.id);
+    const alt = st ? Math.asin(st.hz) / D2R : null;
+    const az = st ? (Math.atan2(st.hx, st.hy) / D2R + 360) % 360 : null;
+    html = `<div class="popup-name">${target.name}</div>`
+      + `<div class="popup-type">Satellite${st && st.fullName !== target.name ? ' (' + st.fullName + ')' : ''} · NORAD ${target.id}</div>`
+      + popupRow('Status', st ? satelliteStatus(st) : 'No current orbit data')
+      + popupRow('Az/Alt', st ? `${formatAz(az)}  ${formatAlt(alt)}` : '\u2014')
+      + popupRow('Altitude', st ? Math.round(st.altKm).toLocaleString() + ' km' : '\u2014')
+      + popupRow('Distance', st ? Math.round(st.rangeKm).toLocaleString() + ' km' : '\u2014')
+      + popupRow('Speed', st ? st.speedKmS.toFixed(2) + ' km/s' : '\u2014');
 
   } else if (target.type === 'dso') {
     html = `<div class="popup-name">${target.name}</div>`
