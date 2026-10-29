@@ -7,52 +7,155 @@
  * All functions take a render context: { ctx, cx, cy, scale, vf, fov }.
  */
 
-import { D2R, R2D, LAT_LA, OBLIQUITY } from './config.js';
+import { D2R, R2D, LAT_LA, SIN_LAT, COS_LAT, OBLIQUITY, BELOW_HORIZON_DIM, MW_INTENSITY } from './config.js';
 import { projectStar, projectStarPre, projectHzPoint, precomputeEq } from './camera.js';
 import { eqToHz } from '../sky/time.js';
+import { EXT_ALPHA, extIndex } from './atmosphere.js';
 
-// --- Milky Way (module-private init-time data) ---
+// --- Milky Way ---
+// A real photographic glow map (ESO/S. Brunier panorama, stars removed —
+// see scripts/build_milkyway.py) stored as an equirectangular texture in
+// galactic coordinates. Each frame, every pixel of a low-res buffer is
+// inverse-projected to a galactic direction with one 3×3 matrix and
+// bilinearly sampled; the buffer is then upscaled onto the sky. The glow is
+// diffuse, so the low resolution is invisible after smoothing.
 
-let milkyWayPoints = null;
+let _mwTex = null;              // { data: Uint8ClampedArray RGBA, w, h }
+// Low-res buffer budgets (pixels): full quality at rest, a third while the
+// view is moving — motion hides the softer glow and it halves drag cost.
+const MW_TARGET_PX = 45000, MW_FAST_PX = 15000;
+const _mwBuffers = new Map();   // budget → { canvas, ctx, img, lw, lh, scale, dirs }
+
+// J2000 equatorial → galactic rotation (rows)
+const EQ_TO_GAL = [
+  [-0.0548755604, -0.8734370902, -0.4838350155],
+  [ 0.4941094279, -0.4448296300,  0.7469822445],
+  [-0.8676661490, -0.1980763734,  0.4559837762],
+];
+
+/** Load the glow texture. Failure just leaves the Milky Way off. */
+export async function initMilkyWay(url) {
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    _mwTex = { data: g.getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height };
+  } catch (err) {
+    console.warn('Milky Way texture failed to load:', err);
+  }
+}
+
+function mul3(A, B) {
+  const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (let i = 0; i < 3; i++)
+    for (let j = 0; j < 3; j++)
+      C[i][j] = A[i][0] * B[0][j] + A[i][1] * B[1][j] + A[i][2] * B[2][j];
+  return C;
+}
 
 /**
- * Build interpolated Milky Way points from catalog waypoints.
- * Called once at init — the module owns this data.
+ * Per-pixel camera-frame directions (camX, camY, cosA) via inverse
+ * stereographic projection. Depends only on buffer size and scale.
  */
-export function initMilkyWay(waypoints) {
-  if (!waypoints || waypoints.length < 4) return; // Catmull-Rom needs 4 points; missing data must not abort init
-  const wp = (waypoints[0].ra === waypoints[waypoints.length - 1].ra &&
-              waypoints[0].dec === waypoints[waypoints.length - 1].dec)
-    ? waypoints.slice(0, -1) : waypoints;
-  // 4 interpolation steps (halved from 8) — cuts ~168 draw calls/frame
-  const pts = [], n = wp.length, STEPS = 4;
-  for (let i = 0; i < n; i++) {
-    const a = wp[(i-1+n)%n], b = wp[i], c = wp[(i+1)%n], d = wp[(i+2)%n];
-    for (let s = 0; s < STEPS; s++) {
-      const t = s / STEPS, t2 = t*t, t3 = t2*t;
-      const ra  = 0.5*((2*b.ra)+(-a.ra+c.ra)*t+(2*a.ra-5*b.ra+4*c.ra-d.ra)*t2+(-a.ra+3*b.ra-3*c.ra+d.ra)*t3);
-      const dec = 0.5*((2*b.dec)+(-a.dec+c.dec)*t+(2*a.dec-5*b.dec+4*c.dec-d.dec)*t2+(-a.dec+3*b.dec-3*c.dec+d.dec)*t3);
-      const w = b.width + (c.width - b.width) * t;
-      const seed = ((i * STEPS + s) * 2654435761) >>> 0;
-      const rA = ((seed&0xFFFF)/0xFFFF-0.5), rD = (((seed>>>16)&0xFFFF)/0xFFFF-0.5);
-      pts.push({pre: precomputeEq(ra, dec), width: w*0.5});
-      pts.push({pre: precomputeEq(ra+rA*w*0.02, dec+rD*w*0.3), width: w*0.3});
+function buildMwDirs(lw, lh, W, H, cx, cy, scale) {
+  const dirs = new Float32Array(lw * lh * 3);
+  let k = 0;
+  for (let j = 0; j < lh; j++) {
+    const y = (cy - (j + 0.5) * H / lh) / scale;
+    for (let i = 0; i < lw; i++) {
+      const x = ((i + 0.5) * W / lw - cx) / scale;
+      const r2 = x * x + y * y;
+      const cosA = (1 - r2) / (1 + r2), D = 1 + cosA;
+      dirs[k++] = x * D; dirs[k++] = y * D; dirs[k++] = cosA;
     }
   }
-  milkyWayPoints = pts;
+  return dirs;
 }
 
 export function renderMilkyWay(rc) {
-  if (!milkyWayPoints) return;
-  const { ctx, cx, cy, scale, vf, fov } = rc;
-  ctx.fillStyle = 'rgba(180,180,210,0.012)';
-  for (const pt of milkyWayPoints) {
-    const p = projectStarPre(pt.pre[0], pt.pre[1], pt.pre[2], vf,
-                             Math.cos((fov/2+pt.width)*D2R));
-    if (!p) continue;
-    const px = cx + p.x * scale, py = cy - p.y * scale;
-    ctx.beginPath(); ctx.arc(px, py, pt.width*D2R*scale, 0, Math.PI*2); ctx.fill();
+  if (!_mwTex) return;
+  const { ctx, cx, cy, scale, vf, moving } = rc;
+  const W = cx * 2, H = cy * 2;
+  const budget = moving ? MW_FAST_PX : MW_TARGET_PX;
+  const f = Math.max(2, Math.sqrt(W * H / budget));
+  const lw = Math.ceil(W / f), lh = Math.ceil(H / f);
+
+  let _mw = _mwBuffers.get(budget);
+  if (!_mw) {
+    const canvas = document.createElement('canvas');
+    _mw = { canvas, ctx: canvas.getContext('2d'), img: null, lw: 0, lh: 0, scale: 0, dirs: null };
+    _mwBuffers.set(budget, _mw);
   }
+  if (_mw.lw !== lw || _mw.lh !== lh) {
+    _mw.canvas.width = lw; _mw.canvas.height = lh;
+    _mw.img = _mw.ctx.createImageData(lw, lh);
+    _mw.lw = lw; _mw.lh = lh; _mw.scale = 0;
+  }
+  if (_mw.scale !== scale) {
+    _mw.dirs = buildMwDirs(lw, lh, W, H, cx, cy, scale);
+    _mw.scale = scale;
+  }
+
+  // camera (R,U,F) → horizontal (E,N,Up) → hour-angle frame → RA frame → galactic
+  const camToHz = [[vf.rX, vf.uX, vf.fX], [vf.rY, vf.uY, vf.fY], [0, vf.uZ, vf.fZ]];
+  const hzToHa = [[0, -SIN_LAT, COS_LAT], [-1, 0, 0], [0, COS_LAT, SIN_LAT]];
+  const haToEq = [[vf.cosLst, vf.sinLst, 0], [vf.sinLst, -vf.cosLst, 0], [0, 0, 1]];
+  const M = mul3(EQ_TO_GAL, mul3(haToEq, mul3(hzToHa, camToHz)));
+  const [m00, m01, m02] = M[0], [m10, m11, m12] = M[1], [m20, m21, m22] = M[2];
+  const uZ = vf.uZ, fZ = vf.fZ;
+
+  const { data: tex, w: tw, h: th } = _mwTex;
+  const out = _mw.img.data, dirs = _mw.dirs;
+  const uScale = tw / (2 * Math.PI), vScale = th / Math.PI;
+  const n = lw * lh;
+
+  for (let i = 0, k = 0; i < n; i++, k += 3) {
+    const a = dirs[k], b = dirs[k + 1], c = dirs[k + 2];
+    const o = i * 4;
+    // Directions behind the viewer (cosA ≈ -1 at the buffer corners) skip
+    if (c < -0.999) { out[o + 3] = 0; continue; }
+    const gx = m00 * a + m01 * b + m02 * c;
+    const gy = m10 * a + m11 * b + m12 * c;
+    const gz = m20 * a + m21 * b + m22 * c;
+
+    // Texture: l = 0 at center increasing leftward, b = +90° at top
+    let tx = (Math.PI - Math.atan2(gy, gx)) * uScale - 0.5;
+    const ty = (Math.PI / 2 - Math.asin(gz > 1 ? 1 : gz < -1 ? -1 : gz)) * vScale - 0.5;
+    if (tx < 0) tx += tw;
+    const x0 = tx | 0, y0 = ty < 0 ? 0 : ty | 0;
+    const fx = tx - x0, fy = ty < 0 ? 0 : ty - y0;
+    const x1 = x0 + 1 >= tw ? 0 : x0 + 1, y1 = y0 + 1 >= th ? th - 1 : y0 + 1;
+    const i00 = (y0 * tw + x0) * 4, i10 = (y0 * tw + x1) * 4;
+    const i01 = (y1 * tw + x0) * 4, i11 = (y1 * tw + x1) * 4;
+    const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+    const r = tex[i00] * w00 + tex[i10] * w10 + tex[i01] * w01 + tex[i11] * w11;
+    const g = tex[i00 + 1] * w00 + tex[i10 + 1] * w10 + tex[i01 + 1] * w01 + tex[i11 + 1] * w11;
+    const bl = tex[i00 + 2] * w00 + tex[i10 + 2] * w10 + tex[i01 + 2] * w01 + tex[i11 + 2] * w11;
+
+    // Encode brightness as alpha over a normalized color, so source-over
+    // compositing onto the dark sky behaves additively — and identically
+    // whether drawn direct or via the transparent layer cache.
+    const lum = Math.max(r, g, bl);
+    if (lum < 1) { out[o + 3] = 0; continue; }
+    const s = 255 / lum;
+    out[o] = r * s; out[o + 1] = g * s; out[o + 2] = bl * s;
+    // Fades through the thicker air near the horizon (mirrored below it, so
+    // the dimmed below-horizon view meets the horizon without a seam)
+    const alt = uZ * b + fZ * c; // sin(altitude) of this direction
+    out[o + 3] = lum * MW_INTENSITY * EXT_ALPHA[extIndex(alt < 0 ? -alt : alt)] *
+                 (alt < 0 ? BELOW_HORIZON_DIM : 1);
+  }
+
+  _mw.ctx.putImageData(_mw.img, 0, 0);
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'low'; // bilinear — 'high' costs ~3× for no visible gain on diffuse light
+  ctx.drawImage(_mw.canvas, 0, 0, W, H);
+  ctx.restore();
 }
 
 // --- Twilight glow ---

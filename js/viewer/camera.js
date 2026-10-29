@@ -41,7 +41,8 @@ export function buildViewFrame(altDeg, azDeg, lstDeg) {
 // default overlays (up to ~29k with both grids enabled), so
 // returning a fresh object per call would allocate megabytes/sec of garbage.
 // Callers that need two live results at once (line segments) pass their own.
-const _out = { x: 0, y: 0, cosAngle: 0, belowHorizon: false };
+// hx/hy/hz: the point's horizontal-frame direction (East, North, Up)
+const _out = { x: 0, y: 0, cosAngle: 0, belowHorizon: false, hx: 0, hy: 0, hz: 0 };
 const _outHz = { x: 0, y: 0, cosAngle: 0 };
 
 /**
@@ -70,6 +71,7 @@ export function projectStar(ra, dec, viewFrame, out = _out) {
   if (D < 0.001) return null;
   out.x = camX / D; out.y = camY / D;
   out.cosAngle = cosA; out.belowHorizon = zHz < 0;
+  out.hx = xHz; out.hy = yHz; out.hz = zHz;
   return out;
 }
 
@@ -98,6 +100,7 @@ export function projectStarPre(sd, cdcr, cdsr, viewFrame, cullCos, out = _out) {
   const camY = xHz * viewFrame.uX + yHz * viewFrame.uY + zHz * viewFrame.uZ;
   out.x = camX / D; out.y = camY / D;
   out.cosAngle = cosA; out.belowHorizon = zHz < 0;
+  out.hx = xHz; out.hy = yHz; out.hz = zHz;
   return out;
 }
 

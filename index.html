@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#050510">
   <title>Jose T. Temblador | Software Engineer</title>
-  <meta name="description" content="Jose T. Temblador, Software Engineer who graduated May 2026. Built a C++ satellite conjunction-screening engine validated against CelesTrak SOCRATES, a real-time star viewer, and an NFL prediction model outperforming professional benchmarks. Based in Fontana, CA.">
+  <meta name="description" content="Jose T. Temblador, Software Engineer who graduated May 2026. Built a C++ satellite conjunction-screening engine validated against CelesTrak SOCRATES, a real-time star viewer, and an NFL prediction model outperforming professional benchmarks. Based in El Paso, TX.">
   <meta property="og:title" content="Jose T. Temblador | Software Engineer">
   <meta property="og:description" content="Software Engineer who graduated May 2026. C++ orbital propagation engine, real-time star viewer, NFL prediction model outperforming professional benchmarks.">
   <meta property="og:type" content="website">
@@ -29,8 +29,8 @@
     "email": "mailto:contact@josetemblador.com",
     "address": {
       "@type": "PostalAddress",
-      "addressLocality": "Fontana",
-      "addressRegion": "CA",
+      "addressLocality": "El Paso",
+      "addressRegion": "TX",
       "addressCountry": "US"
     },
     "alumniOf": {
@@ -83,7 +83,7 @@
         <div>
           <h1>Jose T. Temblador</h1>
           <h2>Software Engineer</h2>
-          <p class="sidebar-location">Fontana, CA</p>
+          <p class="sidebar-location">El Paso, TX</p>
           <nav>
             <a href="#about" class="active">About Me</a>
             <a href="#projects">Projects</a>
@@ -204,7 +204,7 @@
                        target="_blank" rel="noopener noreferrer">GitHub</a>
                   </div>
                 </div>
-                <p style="color:var(--text-body)">The site you're looking at right now. The background is a real-time star viewer rendering the night sky from where I'm based, Fontana. Click the star icon to explore it!</p>
+                <p style="color:var(--text-body)">The site you're looking at right now. The background is a real-time star viewer rendering the night sky from where I'm based, El Paso. Click the star icon to explore it!</p>
                 <ul class="card-list">
                   <li><span class="bullet">&#9657;</span> Rendered 15,598 real stars from the HYG v42 catalog with B-V color index mapping, magnitude-based brightness, and per-star scintillation across 15 ES modules</li>
                   <li><span class="bullet">&#9657;</span> Computed planetary ephemeris at runtime using JPL Keplerian orbital elements, with Sun and Moon positions via simplified Meeus algorithms</li>
@@ -362,6 +362,9 @@
         <button id="btn-eq" title="Equatorial Grid (Q)" aria-pressed="false">Equatorial Grid</button>
         <button id="btn-ecl" class="active" title="Ecliptic (E)" aria-pressed="true">Ecliptic</button>
         <button id="btn-const" class="active" title="Constellations (C)" aria-pressed="true">Constellations</button>
+        <button id="btn-skyline" class="active" title="Skyline outline (L)" aria-pressed="true">Skyline</button>
+        <button id="btn-names" class="active" title="Star names (N)" aria-pressed="true">Star names</button>
+        <button id="btn-sats" class="active" title="Satellites (S)" aria-pressed="true">Satellites</button>
       </div>
     </div>
 
@@ -369,16 +372,27 @@
 
     <button id="help-btn" class="ctrl-btn" title="Help (?)" aria-label="Show controls help" aria-pressed="false">?</button>
     <div id="help-panel" role="dialog" aria-label="Star viewer controls">
-      <ul>
+      <ul class="help-keys">
         <li><b>Drag</b> or arrow keys &mdash; look around</li>
         <li><b>Scroll / pinch</b> or <b>+ &minus;</b> &mdash; zoom</li>
         <li><b>/</b> &mdash; search</li>
         <li><b>Space</b> &mdash; pause time</li>
         <li><b>&lt;&lt; &gt;&gt;</b> &mdash; time travel</li>
         <li><b>Now</b> &mdash; live</li>
-        <li><b>G Q E C</b> &mdash; grids &amp; overlays</li>
+        <li><b>G Q E C L N S</b> &mdash; grids, overlays, skyline, names &amp; satellites</li>
         <li><b>Esc</b> &mdash; close / exit</li>
       </ul>
+      <ul class="help-touch">
+        <li><b>Drag</b> &mdash; look around</li>
+        <li><b>Pinch</b> &mdash; zoom</li>
+        <li><b>Tap</b> a star, planet or the ISS &mdash; details</li>
+        <li><b>Search</b> &mdash; find any star, planet or satellite</li>
+        <li><b>&lt;&lt; &gt;&gt;</b> &mdash; time travel, <b>Now</b> &mdash; live</li>
+        <li><b>Overlays</b> &mdash; grids, names, skyline, satellites</li>
+        <li><b>&larr;</b> &mdash; back to the portfolio</li>
+        <li>Tap the sky to close this</li>
+      </ul>
+      <p class="help-credit">Milky Way: <a href="https://www.eso.org/public/images/eso0932a/" target="_blank" rel="noopener noreferrer">ESO/S. Brunier</a> (CC BY 4.0) &middot; Terrain: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener noreferrer">AWS Terrain Tiles</a> &middot; Satellites: <a href="https://celestrak.org" target="_blank" rel="noopener noreferrer">CelesTrak</a></p>
     </div>
 
     <button id="back-btn" title="Back to portfolio (Esc)" aria-label="Back to portfolio">

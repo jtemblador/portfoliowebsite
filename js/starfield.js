@@ -1,7 +1,7 @@
 /**
  * starfield.js — Interactive Star Viewer (Application Shell)
  *
- * Real-time night sky from Fontana, CA (34.09°N, 117.44°W).
+ * Real-time night sky from El Paso, TX (31.76°N, 106.49°W).
  * Camera-frame projection in horizontal space — flat horizon at all azimuths.
  *
  * Architecture:
@@ -15,21 +15,24 @@
 
 // --- Astronomy layer (pure math, no DOM) ---
 import { fovToScale }      from './sky/projection.js';
-import { lst }             from './sky/time.js';
+import { lst, hzToEq }     from './sky/time.js';
 // planet ephemeris managed by viewer/controls.js
 
 // --- Viewer modules ---
-import { LON_LA, FOV_DEFAULT, FOV_MIN, FOV_MAX, ALT_MIN, ALT_MAX, reducedMotion } from './viewer/config.js';
-import { fovMagLimit, bvToColor, magToRadius, magToAlpha } from './viewer/visual.js';
+import { LAT_LA, LON_LA, D2R, FOV_DEFAULT, FOV_MIN, FOV_MAX, ALT_MIN, ALT_MAX, reducedMotion } from './viewer/config.js';
+import { fovMagLimit, starColor, magToRadius, magToAlpha } from './viewer/visual.js';
 import { buildViewFrame, precomputeEq, unprojectScreen, applyDragRotation } from './viewer/camera.js';
 import { advanceTime, getTimeState, setupTimeControls, updateEphemeris, getCachedPlanets, getCachedSun, getCachedMoon, setSpeed, resetTime } from './viewer/controls.js';
 import { updatePopup } from './viewer/popup.js';
-import { buildSearchIndex, setupSearch } from './viewer/search.js';
+import { buildSearchIndex, setupSearch, addSatellitesToIndex } from './viewer/search.js';
 import { setupInput } from './viewer/input.js';
 
 // --- Render layers ---
 import { initMilkyWay, renderMilkyWay, renderTwilight, renderAltAzGrid, renderEqGrid, renderEcliptic, renderZodiacBand, renderHorizon } from './viewer/render-background.js';
 import { renderStars, renderDSOs, renderSun, renderMoon, renderPlanets } from './viewer/render-objects.js';
+import { initSkyline, hasSkyline, renderSkyline } from './viewer/render-skyline.js';
+import { updateMeteors, renderMeteors, meteorsActive } from './viewer/meteors.js';
+import { loadSatellites, updateSatellites, renderSatellites, satellitesInView, getSatellite } from './viewer/satellites.js';
 import { renderConstellationLines, renderConstellationHighlight, renderSelection, renderCardinals, renderLabels } from './viewer/render-overlays.js';
 
 // --- DOM (may be null if elements aren't in the page yet) ---
@@ -48,7 +51,7 @@ let data = null;
 const view = { az: 180.0, alt: 45.0, fov: FOV_DEFAULT };
 const drag = { active: false, prevX: 0, prevY: 0, startX: 0, startY: 0, startTime: 0 };
 const overlays = { altAzGrid: false, eqGrid: false, ecliptic: true };
-const toggles  = { constellations: true };
+const toggles  = { constellations: true, skyline: true, starNames: true, satellites: true };
 
 let selectedObject = null;
 let hoveredConst   = null;
@@ -64,6 +67,7 @@ let W = 0, H = 0, cx = 0, cy = 0;
 let starScreenBuf = null;
 let starScreenCount = 0;
 let planetScreenBuf = [];
+let satelliteScreenBuf = [];
 let moonScreenPos = null;
 let constLabelScreen = [];
 let dsoScreenBuf = [];
@@ -73,14 +77,19 @@ let portfolioMode = true;
 let _frameId = null;
 
 // Lookup tables (built at init)
-let starNameLookup = null;
 let hipToConst = null;
 let constByAbbr = null;
 
 // --- Canvas sizing ---
 
+// Canvas resolution is capped at 2×: on 3× phones that halves GPU memory for
+// the canvas and its two layer caches with no visible difference.
+function canvasDpr() {
+  return Math.min(window.devicePixelRatio || 1, 2);
+}
+
 function resize() {
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = canvasDpr();
   W = window.innerWidth;
   H = window.innerHeight;
   canvas.width  = Math.round(W * dpr);
@@ -92,12 +101,20 @@ function resize() {
   cy = H / 2;
 }
 
+// Resizing clears the canvas: redraw right away, even if the background
+// renderer is asleep (rotation, mobile URL bar, desktop window resize).
+function onWindowResize() {
+  resize();
+  _lastRenderTime = 0;
+  if (!_frameId && data) render();
+}
+
 // --- Popup delegation ---
 
 function callUpdatePopup() {
   updatePopup(popupEl, selectedObject, clickedConst, {
     cachedPlanets: getCachedPlanets(), cachedMoon: getCachedMoon(),
-    constByAbbr, hipToConst, starNameLookup,
+    constByAbbr,
     timeOffsetMs: getTimeState().timeOffsetMs,
   });
 }
@@ -105,11 +122,11 @@ function callUpdatePopup() {
 // --- Clock ---
 
 const clockFmt = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'America/Los_Angeles',
+  timeZone: 'America/Denver',
   hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
 });
 const dateFmt = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'America/Los_Angeles',
+  timeZone: 'America/Denver',
   year: 'numeric', month: 'short', day: '2-digit', weekday: 'short',
 });
 
@@ -144,16 +161,16 @@ function updateClock() {
 let _lastInfoKey = '';
 function updateInfo() {
   if (!infoEl) return;
-  const key = `${view.fov}|${overlays.altAzGrid}|${overlays.eqGrid}|${overlays.ecliptic}|${toggles.constellations}`;
+  const key = `${view.fov}|${overlays.altAzGrid}|${overlays.eqGrid}|${overlays.ecliptic}|${toggles.constellations}|${toggles.skyline}|${toggles.starNames}|${toggles.satellites}`;
   if (key === _lastInfoKey) return;
   _lastInfoKey = key;
   const magLimit = fovMagLimit(view.fov);
   const g = (on, key) => on ? `<span style="color:#4f4">[${key}]</span>` : `<span style="color:#555">[${key}]</span>`;
   infoEl.innerHTML =
-    `<b>Fontana, CA</b><br>` +
+    `<b>El Paso, TX</b><br>` +
     `FOV: ${view.fov.toFixed(1)}° | Mag: ${magLimit.toFixed(1)}<br>` +
     g(overlays.altAzGrid, 'G') + ' ' + g(overlays.eqGrid, 'Q') + ' ' +
-    g(overlays.ecliptic, 'E') + ' ' + g(toggles.constellations, 'C');
+    g(overlays.ecliptic, 'E') + ' ' + g(toggles.constellations, 'C') + ' ' + g(toggles.skyline, 'L') + ' ' + g(toggles.starNames, 'N') + ' ' + g(toggles.satellites, 'S');
 }
 
 // --- Main render ---
@@ -202,13 +219,14 @@ function layerCacheKey(lstDeg) {
   // lst bucketed at 0.005° (~0.05px at default FOV): live sidereal drift
   // invalidates the cache every ~1.2s rather than every frame.
   return view.az.toFixed(3) + ',' + view.alt.toFixed(3) + ',' + view.fov.toFixed(3) +
-    ',' + W + 'x' + H + ',' + (window.devicePixelRatio || 1) +
+    ',' + W + 'x' + H + ',' + canvasDpr() +
     ',' + Math.round(lstDeg / 0.005) +
-    ',' + overlays.altAzGrid + overlays.eqGrid + overlays.ecliptic + toggles.constellations;
+    ',' + overlays.altAzGrid + overlays.eqGrid + overlays.ecliptic + toggles.constellations +
+    toggles.skyline + toggles.starNames;
 }
 
-function rebuildLayerCache(key, lstDeg, scale, vf) {
-  const dpr = window.devicePixelRatio || 1;
+function rebuildLayerCache(key, rc) {
+  const dpr = canvasDpr();
   const pw = Math.round(W * dpr), ph = Math.round(H * dpr);
   if (!_layerCache.under) {
     _layerCache.under = document.createElement('canvas');
@@ -226,19 +244,62 @@ function rebuildLayerCache(key, lstDeg, scale, vf) {
   uc.clearRect(0, 0, W, H);
   oc.clearRect(0, 0, W, H);
 
-  const rcU = { ctx: uc, cx, cy, scale, vf, fov: view.fov };
+  const rcU = { ...rc, ctx: uc };
   renderMilkyWay(rcU);
-  renderTwilight(rcU, lstDeg, getCachedSun());
+  renderTwilight(rcU, rc.vf.lstDeg, getCachedSun());
   if (overlays.altAzGrid) renderAltAzGrid(rcU);
   if (overlays.eqGrid) renderEqGrid(rcU);
   if (overlays.ecliptic) { renderZodiacBand(rcU); renderEcliptic(rcU); }
   _layerCache.dsoBuf = renderDSOs(rcU, data.dsos, null); // pulse drawn live
   renderConstellationLines(rcU, data.constellations, constFadeAlphas, toggles.constellations);
 
-  const rcO = { ctx: oc, cx, cy, scale, vf, fov: view.fov };
-  _layerCache.labelBuf = renderLabels(rcO, data.constellations, data.dsos, constFadeAlphas, toggles.constellations);
+  const rcO = { ...rc, ctx: oc };
+  _layerCache.labelBuf = renderLabels(rcO, labelLayers());
 
   _layerCache.key = key;
+}
+
+// --- Satellites ---
+// Orbit data loads on first use in exploration mode, so the portfolio page
+// never fetches it; once loaded, satellites become searchable.
+let _satsRequested = false;
+function ensureSatellites() {
+  if (_satsRequested) return;
+  _satsRequested = true;
+  loadSatellites().then(addSatellitesToIndex);
+}
+
+// The selection ring follows RA/Dec, so keep a selected satellite's current
+// position there (it crosses the sky in minutes).
+function trackSelectedSatellite(lstDeg) {
+  if (selectedObject?.type !== 'satellite') return;
+  const st = getSatellite(selectedObject.id);
+  if (!st) return;
+  const eq = hzToEq(Math.asin(st.hz) / D2R, (Math.atan2(st.hx, st.hy) / D2R + 360) % 360, lstDeg, LAT_LA);
+  selectedObject.ra = eq.ra; selectedObject.dec = eq.dec;
+}
+
+// Everything renderLabels places, in one bundle for both render paths
+function labelLayers() {
+  return {
+    constellations: data.constellations, dsos: data.dsos, constFadeAlphas,
+    showConst: toggles.constellations, planets: getCachedPlanets(),
+    stars: data.stars, showStarNames: toggles.starNames,
+  };
+}
+
+// Sun, Moon, planets, then the horizon line (always), the real skyline
+// outline above it, and cardinal markers — shared by both render paths.
+function renderNearLayers(rc) {
+  planetScreenBuf = renderPlanets(rc, getCachedPlanets(), portfolioMode);
+  renderSun(rc, getCachedSun());
+  moonScreenPos = renderMoon(rc, getCachedMoon(), getCachedSun());
+  if (portfolioMode) return;
+  satelliteScreenBuf = toggles.satellites ? renderSatellites(rc) : [];
+  renderMeteors(rc);
+  renderHorizon(rc);
+  if (rc.skyline) renderSkyline(rc);
+  renderCardinals(rc);
 }
 
 // The cached DSO layer is drawn without selection state; the pulsing ring for
@@ -291,7 +352,22 @@ function render() {
   // Build camera frame and render context
   const vf = buildViewFrame(view.alt, view.az, lstDeg);
   const scale = fovToScale(view.fov, Math.min(cx, cy));
-  const rc = { ctx, cx, cy, scale, vf, fov: view.fov };
+  const skyline = !portfolioMode && toggles.skyline && hasSkyline();
+  const moving = drag.active || _inertia !== null || viewTarget !== null;
+  const dpr = canvas.width / W;
+  const rc = { ctx, cx, cy, scale, vf, fov: view.fov, atmo: !portfolioMode, skyline, moving, dpr };
+
+  const ts = getTimeState();
+  const simDate = new Date(Date.now() + ts.timeOffsetMs);
+  updateMeteors({
+    simDate, lstDeg, sun: getCachedSun(), rc,
+    enabled: !portfolioMode && Math.abs(ts.timeSpeed) <= 10,
+  });
+  if (!portfolioMode && toggles.satellites) {
+    ensureSatellites();
+    updateSatellites(simDate, lstDeg, getCachedSun());
+    trackSelectedSatellite(lstDeg);
+  }
 
   // Constellation fade animation — hovered and clicked both stay highlighted.
   // _fadesChanged tracks whether any alpha actually moved this frame: a
@@ -329,7 +405,7 @@ function render() {
   // Any interaction (drag, pan target, fast time, constellation fades)
   // bypasses the cache and draws everything directly. The cache is only
   // (re)built once the key has been stable for two consecutive frames, so
-  // continuous zoom/keyboard-pan/touch-pan (which don't set drag.active)
+  // continuous zoom and keyboard-pan (which don't set drag.active)
   // render direct instead of thrashing a full rebuild every frame.
   let anyFade = false;
   for (const k in constFadeAlphas) { anyFade = true; break; }
@@ -345,18 +421,14 @@ function render() {
   }
 
   if (cacheable && cacheReady) {
-    if (_layerCache.key !== key) rebuildLayerCache(key, lstDeg, scale, vf);
+    if (_layerCache.key !== key) rebuildLayerCache(key, rc);
     ctx.drawImage(_layerCache.under, 0, 0, W, H);
     dsoScreenBuf = _layerCache.dsoBuf;
 
     starScreenCount = renderStars(rc, data.stars, starScreenBuf, false);
     renderSelection(rc, selectedObject);
     drawSelectedDsoPulse();
-    renderHorizon(rc);
-    renderCardinals(rc);
-    planetScreenBuf = renderPlanets(rc, getCachedPlanets());
-    renderSun(rc, getCachedSun());
-    moonScreenPos = renderMoon(rc, getCachedMoon(), getCachedSun());
+    renderNearLayers(rc);
     ctx.drawImage(_layerCache.over, 0, 0, W, H);
     constLabelScreen = _layerCache.labelBuf;
   } else {
@@ -373,13 +445,11 @@ function render() {
     starScreenCount = renderStars(rc, data.stars, starScreenBuf, portfolioMode);
     if (!portfolioMode) renderConstellationHighlight(rc, constFadeAlphas, constByAbbr, data.hip);
     if (!portfolioMode) renderSelection(rc, selectedObject);
-    if (!portfolioMode) renderHorizon(rc);
-    if (!portfolioMode) renderCardinals(rc);
-    planetScreenBuf = renderPlanets(rc, getCachedPlanets());
-    renderSun(rc, getCachedSun());
-    moonScreenPos = renderMoon(rc, getCachedMoon(), getCachedSun());
-    if (!portfolioMode) constLabelScreen = renderLabels(rc, data.constellations, data.dsos, constFadeAlphas, toggles.constellations);
+    renderNearLayers(rc);
+    if (!portfolioMode) constLabelScreen = renderLabels(rc, labelLayers());
   }
+
+  if (selectedObject?.type === 'moon' && moonScreenPos) selectedObject.screenR = moonScreenPos.screenR;
 
   // UI updates (skip in portfolio mode)
   if (!portfolioMode) {
@@ -402,7 +472,8 @@ function sceneSignature() {
     ',' + (hoveredConst || '') + ',' + (clickedConst || '') +
     ',' + (selectedObject ? (selectedObject.name || selectedObject.ra + ':' + selectedObject.dec) : '') +
     ',' + Math.floor((Date.now() + getTimeState().timeOffsetMs) / 60000) +
-    ',' + overlays.altAzGrid + overlays.eqGrid + overlays.ecliptic + toggles.constellations;
+    ',' + overlays.altAzGrid + overlays.eqGrid + overlays.ecliptic + toggles.constellations +
+    toggles.skyline + toggles.starNames + toggles.satellites;
 }
 
 function frame(timestamp) {
@@ -425,7 +496,8 @@ function frame(timestamp) {
     // A highlight pinned at full strength counts as static (_fadesChanged).
     // Live time (speed 1) moves the sky sub-pixel per frame — not animation.
     const animating = drag.active || viewTarget !== null || _fadesChanged ||
-                      _inertia !== null || Math.abs(getTimeState().timeSpeed) > 1;
+                      _inertia !== null || Math.abs(getTimeState().timeSpeed) > 1 ||
+                      meteorsActive() || satellitesInView();
     const sig = sceneSignature();
     if (animating || sig !== _lastSceneSig) {
       if (elapsed < 33) return;
@@ -444,16 +516,7 @@ function frame(timestamp) {
 
 // --- Init ---
 
-function buildStarNameLookup() {
-  starNameLookup = new Map();
-  if (data.star_names) {
-    for (const hipID of Object.keys(data.star_names)) {
-      const pos = data.hip[hipID];
-      if (!pos) continue;
-      const key = pos[0].toFixed(6) + ',' + pos[1].toFixed(5);
-      starNameLookup.set(key, { ...data.star_names[hipID], hipID });
-    }
-  }
+function buildHipToConst() {
   hipToConst = new Map();
   for (const c of data.constellations) {
     for (const [h1, h2] of c.lines) {
@@ -468,6 +531,8 @@ function buildStarNameLookup() {
 async function init() {
   resize();
 
+  // Optional layers load in parallel; a failure just leaves them off
+  const layersReady = Promise.all([initMilkyWay('data/milkyway.jpg'), initSkyline('data/horizon.json')]);
   try {
     const resp = await fetch('data/stars.json');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -481,18 +546,24 @@ async function init() {
   // Precompute each star's constant visual properties once. Color (from B-V
   // index) and base radius/alpha (from magnitude) never change, so the render
   // loop reads these instead of recomputing them every frame.
-  //   s[6] = "r,g,b" string   s[7] = radius   s[8] = base alpha
-  //   s[9] = full canvas fillStyle — paired with globalAlpha, this makes the
+  // Catalog fields s[0..7]: ra, dec, mag, ci, dist_ly, spect, con, names.
+  //   s[8] = "r,g,b" string (B-V tint, desaturated for faint stars)
+  //   s[9] = radius   s[10] = base alpha
+  //   s[11] = full canvas fillStyle — paired with globalAlpha, this makes the
   //          star loop allocation-free (no rgba template string per star)
-  //   s[10..12] = sin(dec), cos(dec)cos(ra), cos(dec)sin(ra) — lets the render
+  //   s[12..14] = sin(dec), cos(dec)cos(ra), cos(dec)sin(ra) — lets the render
   //          loop project with zero trig calls (see camera.js projectStarPre)
+  //   s[15] = proper name for on-sky labels, or null (Bayer, Flamsteed, and
+  //          catalog-only stars: their symbol form or a number comes first)
   for (const s of data.stars) {
-    s[6] = bvToColor(s[3]);
-    s[7] = magToRadius(s[2]);
-    s[8] = magToAlpha(s[2]);
-    s[9] = `rgb(${s[6]})`;
+    s[8] = starColor(s[3], s[2]);
+    s[9] = magToRadius(s[2]);
+    s[10] = magToAlpha(s[2]);
+    s[11] = `rgb(${s[8]})`;
     const pre = precomputeEq(s[0], s[1]);
-    s[10] = pre[0]; s[11] = pre[1]; s[12] = pre[2];
+    s[12] = pre[0]; s[13] = pre[1]; s[14] = pre[2];
+    const [primary, alt] = s[7].split(';');
+    s[15] = /^(\d|HD |HIP |Gl |GJ )/.test(primary) || (alt && /^[α-ω]/.test(alt)) ? null : primary;
   }
 
   // Constellation line segments store precomputed projection terms for both
@@ -510,14 +581,16 @@ async function init() {
     }
   }
 
-  initMilkyWay(data.milky_way);
-  buildStarNameLookup();
+  await layersReady;
+  buildHipToConst();
   for (const c of data.constellations) {
     c.starCount = new Set(c.lines.flat()).size;
   }
   constByAbbr = new Map(data.constellations.map(c => [c.abbr, c]));
 
-  setSpeed(100); // portfolio mode default: 100x for visible sky motion
+  // Portfolio background runs at 100x for visible sky motion; the standalone
+  // viewer has already switched to exploration (real time) before init.
+  if (portfolioMode) setSpeed(100);
   const initJd = (Date.now() + getTimeState().timeOffsetMs) / 86400000 + 2440587.5;
   updateEphemeris(initJd);
   buildSearchIndex(data, getCachedPlanets(), getCachedMoon());
@@ -528,6 +601,8 @@ async function init() {
     setClickedConst: (c) => { clickedConst = c; },
     getAppState: () => ({ cachedPlanets: getCachedPlanets(), cachedMoon: getCachedMoon(), data, cx, cy }),
   });
+  // Both modes: the portfolio background must follow rotation/URL-bar resizes too
+  window.addEventListener('resize', onWindowResize);
 }
 
 let _inputReady = false;
@@ -546,9 +621,8 @@ function ensureInputSetup() {
       applyZoom,
       startInertia,
       stopInertia,
-      onResize: resize,
       getScreenState: () => ({
-        starScreenBuf, starScreenCount, planetScreenBuf, moonScreenPos,
+        starScreenBuf, starScreenCount, planetScreenBuf, satelliteScreenBuf, moonScreenPos,
         constLabelScreen, dsoScreenBuf, data, hipToConst,
       }),
     },

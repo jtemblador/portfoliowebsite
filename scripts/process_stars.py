@@ -7,6 +7,7 @@ Sources:
   - HYG Database v3: https://github.com/astronexus/HYG-Database
   - Constellation lines: Stellarium-style hip-to-hip connections
   - Deep sky objects: curated Messier + notable NGC objects
+  (The Milky Way glow is a separate texture — see build_milkyway.py)
 
 Output: data/stars.json
 """
@@ -14,6 +15,7 @@ Output: data/stars.json
 import csv
 import gzip
 import json
+import math
 import os
 import urllib.request
 
@@ -28,6 +30,46 @@ STELLARIUM_URL = "https://raw.githubusercontent.com/Stellarium/stellarium-skycul
 STELLARIUM_PATH = os.path.join(DATA_DIR, "stellarium_western.json")
 
 MAG_LIMIT = 7.0  # extended for zoom detail (naked-eye ~6.5)
+
+# Bayer letter codes (HYG "bayer" field) → (Greek letter, spelled-out name)
+GREEK = {
+    "Alp": ("α", "Alpha"), "Bet": ("β", "Beta"), "Gam": ("γ", "Gamma"),
+    "Del": ("δ", "Delta"), "Eps": ("ε", "Epsilon"), "Zet": ("ζ", "Zeta"),
+    "Eta": ("η", "Eta"), "The": ("θ", "Theta"), "Iot": ("ι", "Iota"),
+    "Kap": ("κ", "Kappa"), "Lam": ("λ", "Lambda"), "Mu": ("μ", "Mu"),
+    "Nu": ("ν", "Nu"), "Xi": ("ξ", "Xi"), "Omi": ("ο", "Omicron"),
+    "Pi": ("π", "Pi"), "Rho": ("ρ", "Rho"), "Sig": ("σ", "Sigma"),
+    "Tau": ("τ", "Tau"), "Ups": ("υ", "Upsilon"), "Phi": ("φ", "Phi"),
+    "Chi": ("χ", "Chi"), "Psi": ("ψ", "Psi"), "Ome": ("ω", "Omega"),
+}
+SUPERSCRIPT = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
+
+# IAU constellation genitives, used in designations like "61 Cygni"
+GENITIVE = {
+    "And": "Andromedae", "Ant": "Antliae", "Aps": "Apodis", "Aql": "Aquilae",
+    "Aqr": "Aquarii", "Ara": "Arae", "Ari": "Arietis", "Aur": "Aurigae",
+    "Boo": "Boötis", "CMa": "Canis Majoris", "CMi": "Canis Minoris",
+    "CVn": "Canum Venaticorum", "Cae": "Caeli", "Cam": "Camelopardalis",
+    "Cap": "Capricorni", "Car": "Carinae", "Cas": "Cassiopeiae", "Cen": "Centauri",
+    "Cep": "Cephei", "Cet": "Ceti", "Cha": "Chamaeleontis", "Cir": "Circini",
+    "Cnc": "Cancri", "Col": "Columbae", "Com": "Comae Berenices",
+    "CrA": "Coronae Australis", "CrB": "Coronae Borealis", "Crt": "Crateris",
+    "Cru": "Crucis", "Crv": "Corvi", "Cyg": "Cygni", "Del": "Delphini",
+    "Dor": "Doradus", "Dra": "Draconis", "Equ": "Equulei", "Eri": "Eridani",
+    "For": "Fornacis", "Gem": "Geminorum", "Gru": "Gruis", "Her": "Herculis",
+    "Hor": "Horologii", "Hya": "Hydrae", "Hyi": "Hydri", "Ind": "Indi",
+    "LMi": "Leonis Minoris", "Lac": "Lacertae", "Leo": "Leonis", "Lep": "Leporis",
+    "Lib": "Librae", "Lup": "Lupi", "Lyn": "Lyncis", "Lyr": "Lyrae",
+    "Men": "Mensae", "Mic": "Microscopii", "Mon": "Monocerotis", "Mus": "Muscae",
+    "Nor": "Normae", "Oct": "Octantis", "Oph": "Ophiuchi", "Ori": "Orionis",
+    "Pav": "Pavonis", "Peg": "Pegasi", "Per": "Persei", "Phe": "Phoenicis",
+    "Pic": "Pictoris", "PsA": "Piscis Austrini", "Psc": "Piscium", "Pup": "Puppis",
+    "Pyx": "Pyxidis", "Ret": "Reticuli", "Scl": "Sculptoris", "Sco": "Scorpii",
+    "Sct": "Scuti", "Ser": "Serpentis", "Sex": "Sextantis", "Sge": "Sagittae",
+    "Sgr": "Sagittarii", "Tau": "Tauri", "Tel": "Telescopii", "TrA": "Trianguli Australis",
+    "Tri": "Trianguli", "Tuc": "Tucanae", "UMa": "Ursae Majoris", "UMi": "Ursae Minoris",
+    "Vel": "Velorum", "Vir": "Virginis", "Vol": "Volantis", "Vul": "Vulpeculae",
+}
 
 
 def download_hyg():
@@ -82,6 +124,12 @@ def parse_stars():
             spect_raw = row.get("spect", "").strip()
             spect = spect_raw if spect_raw else None
 
+            # Designations: Bayer letter, Flamsteed number, catalog IDs
+            bayer = row.get("bayer", "").strip() or None
+            flam = row.get("flam", "").strip() or None
+            hd = row.get("hd", "").strip() or None
+            gl = row.get("gl", "").strip() or None
+
             stars.append({
                 "hip": hip,
                 "ra": round(ra, 6),
@@ -92,6 +140,10 @@ def parse_stars():
                 "con": con,
                 "dist_ly": dist_ly,
                 "spect": spect,
+                "bayer": bayer,
+                "flam": flam,
+                "hd": hd,
+                "gl": gl,
             })
 
     print(f"  Parsed {len(stars)} stars (mag <= {MAG_LIMIT}, full sky)")
@@ -167,33 +219,6 @@ DEEP_SKY_OBJECTS = [
     {"name": "Omega Centauri",       "ra": 13.447,"dec": -47.48, "size": 0.6, "brightness": 0.35, "type": "globular_cluster"},
 ]
 
-# Milky Way band — approximate centerline path as (ra_hours, dec_degrees) waypoints
-MILKY_WAY = [
-    {"ra": 6.0,  "dec": -25.0, "width": 15},
-    {"ra": 7.0,  "dec": -15.0, "width": 12},
-    {"ra": 8.0,  "dec": -5.0,  "width": 10},
-    {"ra": 12.0, "dec": 60.0,  "width": 8},
-    {"ra": 18.0, "dec": -25.0, "width": 20},
-    {"ra": 18.5, "dec": -20.0, "width": 25},
-    {"ra": 19.0, "dec": -15.0, "width": 22},
-    {"ra": 19.5, "dec": 0.0,   "width": 18},
-    {"ra": 20.0, "dec": 20.0,  "width": 15},
-    {"ra": 20.5, "dec": 35.0,  "width": 15},
-    {"ra": 21.0, "dec": 45.0,  "width": 14},
-    {"ra": 21.5, "dec": 52.0,  "width": 13},
-    {"ra": 22.0, "dec": 56.0,  "width": 12},
-    {"ra": 23.0, "dec": 58.0,  "width": 10},
-    {"ra": 0.0,  "dec": 60.0,  "width": 10},
-    {"ra": 1.0,  "dec": 58.0,  "width": 10},
-    {"ra": 2.0,  "dec": 55.0,  "width": 10},
-    {"ra": 3.0,  "dec": 50.0,  "width": 12},
-    {"ra": 4.0,  "dec": 40.0,  "width": 12},
-    {"ra": 5.0,  "dec": 20.0,  "width": 14},
-    {"ra": 5.5,  "dec": 0.0,   "width": 15},
-    {"ra": 6.0,  "dec": -25.0, "width": 15},
-]
-
-
 def build_constellation_data(stars):
     """Build constellation lines and label positions from Stellarium data."""
     # Index stars by HIP ID for fast lookup
@@ -204,30 +229,64 @@ def build_constellation_data(stars):
 
     constellations_raw = parse_stellarium_constellations()
 
+    def unit(star):
+        ra, dec = math.radians(star["ra"] * 15), math.radians(star["dec"])
+        return (math.cos(dec) * math.cos(ra), math.cos(dec) * math.sin(ra), math.sin(dec))
+
     constellations = []
     for name, abbr, segments in constellations_raw:
         lines = []
-        ra_sum = 0
-        dec_sum = 0
-        count = 0
+        # Label at the mean direction of the line endpoints. Averaging unit
+        # vectors (not RA numbers) keeps figures that straddle 0h/24h, like
+        # Pisces and Pegasus, from landing on the opposite side of the sky.
+        vx = vy = vz = 0.0
         for hip1, hip2 in segments:
             if hip1 in hip_index and hip2 in hip_index:
                 lines.append([hip1, hip2])
-                ra_sum += hip_index[hip1]["ra"] + hip_index[hip2]["ra"]
-                dec_sum += hip_index[hip1]["dec"] + hip_index[hip2]["dec"]
-                count += 2
+                for h in (hip1, hip2):
+                    x, y, z = unit(hip_index[h])
+                    vx += x; vy += y; vz += z
 
-        if lines and count > 0:
+        if lines:
+            norm = math.sqrt(vx * vx + vy * vy + vz * vz)
             constellations.append({
                 "name": name,
                 "abbr": abbr,
                 "lines": lines,
-                "label_ra": round(ra_sum / count, 4),
-                "label_dec": round(dec_sum / count, 3),
+                "label_ra": round((math.degrees(math.atan2(vy, vx)) % 360) / 15, 4),
+                "label_dec": round(math.degrees(math.asin(vz / norm)), 3),
             })
 
     print(f"  Built {len(constellations)} constellations with visible line segments")
     return constellations
+
+
+def star_names(s):
+    """
+    Display names, best first, joined by ";". Bayer letters are spelled out
+    ("Nu Ceti") since ν/v and ρ/p look alike on screen; a Bayer-named star
+    also lists the symbol form. Examples:
+      "Vega;Alpha Lyrae;3 Lyrae"
+      "Nu Ceti;ν Ceti;78 Ceti;HD 16161"
+      "61 Cygni;HD 201091"
+    """
+    gen = GENITIVE.get(s["con"], s["con"])
+    bayer = bayer_sym = flam = None
+    if s["bayer"]:
+        letter, _, sup = s["bayer"].partition("-")
+        sym, word = GREEK[letter]
+        sup = sup.translate(SUPERSCRIPT)
+        bayer, bayer_sym = f"{word}{sup} {gen}", f"{sym}{sup} {gen}"
+    if s["flam"]:
+        flam = f"{s['flam']} {gen}"
+    catalog = (f"HD {s['hd']}" if s["hd"] else
+               f"HIP {s['hip']}" if s["hip"] else s["gl"])
+
+    if s["proper"]:
+        names = [n for n in (s["proper"], bayer, flam, catalog) if n][:3]
+    else:
+        names = [n for n in (bayer, bayer_sym, flam, catalog) if n]
+    return ";".join(names)
 
 
 def build_output(stars, constellations):
@@ -239,25 +298,19 @@ def build_output(stars, constellations):
             hip_set.add(h1)
             hip_set.add(h2)
 
-    # Compact star array: [ra, dec, mag] — no hip needed for most stars
+    # Compact star array: [ra, dec, mag, ci, dist_ly, spect, con, names]
     # Stars with HIP IDs used in constellations get stored in a separate lookup
     star_array = []
     hip_lookup = {}
-    star_names = {}
 
     for s in stars:
-        star_array.append([s["ra"], s["dec"], s["mag"], s["ci"], s["dist_ly"], s["spect"]])
-        if s["hip"] is not None:
-            if s["hip"] in hip_set:
-                hip_lookup[s["hip"]] = [s["ra"], s["dec"]]
-            if s["proper"]:
-                star_names[s["hip"]] = {
-                    "name": s["proper"], "con": s["con"],
-                    "dist": s["dist_ly"], "spect": s["spect"],
-                }
+        star_array.append([s["ra"], s["dec"], s["mag"], s["ci"], s["dist_ly"], s["spect"],
+                           s["con"], star_names(s)])
+        if s["hip"] is not None and s["hip"] in hip_set:
+            hip_lookup[s["hip"]] = [s["ra"], s["dec"]]
 
     dsos = list(DEEP_SKY_OBJECTS)
-    print(f"  Named stars: {len(star_names)}")
+    print(f"  Proper names: {sum(1 for s in stars if s['proper'])}")
 
     output = {
         "meta": {
@@ -270,8 +323,6 @@ def build_output(stars, constellations):
         "hip": {str(k): v for k, v in hip_lookup.items()},
         "constellations": constellations,
         "dsos": dsos,
-        "milky_way": MILKY_WAY,
-        "star_names": {str(k): v for k, v in star_names.items()},
     }
 
     return output
@@ -293,8 +344,8 @@ def main():
     print("Step 5: Assemble output")
     output = build_output(stars, constellations)
 
-    with open(OUTPUT_PATH, "w") as f:
-        json.dump(output, f, separators=(",", ":"))
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+        json.dump(output, f, separators=(",", ":"), ensure_ascii=False)
 
     size_kb = os.path.getsize(OUTPUT_PATH) / 1024
     print(f"\nDone! Written to {OUTPUT_PATH}")

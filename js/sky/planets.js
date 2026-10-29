@@ -43,23 +43,6 @@ const ELEMENTS = {
   Pluto:   [39.48211675, -0.00031596, 0.24882730, 0.00005170, 17.14001206, 0.00004818, 238.92903833, 145.20780515, 224.06891629, -0.04062942, 110.30393684, -0.01183482],
 };
 
-// Planet visual radii in km — used to size the rendered dots proportionally
-const PLANET_RADIUS_KM = {
-  Mercury: 2440,
-  Venus:   6051,
-  Mars:    3390,
-  Jupiter: 71492,
-  Saturn:  60268,
-  Uranus:  25559,
-  Neptune: 24764,
-  Pluto:   1188,
-};
-
-const R_JUPITER_KM = 71492;
-// Screen dot radius: planets scaled by sqrt(radius) for better visual spread
-const DOT_MIN = 1.5;  // CSS px (Mercury/Pluto)
-const DOT_MAX = 8.0;  // CSS px (Jupiter)
-
 /** Evaluate orbital elements at time T (Julian centuries from J2000). */
 function evalElements(elems, T) {
   return {
@@ -127,10 +110,6 @@ function helioEcliptic(elems, T) {
   return { x, y, z };
 }
 
-/**
- * Compute RA/Dec for all 8 visible planets + Pluto at the given Julian Date.
- * Returns array of { name, ra (hours), dec (degrees), screenR (CSS px) }.
- */
 // Planet absolute magnitudes and phase coefficients (Mallama & Hilton 2018)
 const PLANET_MAG = {
   Mercury: { V0: -0.36, c1: 0.027, c2: 2.2e-13, pow: 6 },
@@ -145,7 +124,7 @@ const PLANET_MAG = {
 
 /**
  * Compute RA/Dec, distance, magnitude, and phase for all planets.
- * Returns array of { name, ra, dec, screenR, distAU, helioDist, phase, phaseAngle, magnitude }.
+ * Returns array of { name, ra, dec, distAU, helioDist, phase, phaseAngle, magnitude }.
  */
 export function planetPositions(jd) {
   const T = (jd - 2451545.0) / 36525;
@@ -184,9 +163,7 @@ export function planetPositions(jd) {
     const ra    = raDeg / 15;
     const dec   = Math.atan2(eqZ, Math.sqrt(eqX * eqX + eqY * eqY)) * R2D;
 
-    const screenR = DOT_MIN + (DOT_MAX - DOT_MIN) * Math.sqrt(PLANET_RADIUS_KM[name] / R_JUPITER_KM);
-
-    results.push({ name, ra, dec, screenR, distAU: R, helioDist: r, phase, phaseAngle, magnitude });
+    results.push({ name, ra, dec, distAU: R, helioDist: r, phase, phaseAngle, magnitude });
   }
 
   return results;
@@ -214,7 +191,8 @@ export function sunPosition(jd) {
 /**
  * Moon's geocentric equatorial position using simplified Meeus algorithm.
  * ~1° accuracy — sufficient for visual rendering (Moon is 0.5° across).
- * Returns { name, ra, dec, elongation } where elongation is Sun-Moon angle.
+ * Returns { name, ra, dec, elongation, distAU, illumination, waxing } where
+ * elongation is the Sun-Moon angle and illumination the lit fraction (0–1).
  */
 export function moonPosition(jd) {
   const T = (jd - 2451545.0) / 36525;
@@ -269,5 +247,10 @@ export function moonPosition(jd) {
                  + Math.cos(sunDecR) * Math.cos(moonDecR) * Math.cos(sunRaR - moonRaR);
   const elongation = Math.acos(Math.max(-1, Math.min(1, cosElong))) * R2D;
 
-  return { name: 'Moon', ra, dec, elongation, distAU };
+  // Lit fraction from phase angle i ≈ 180° − elongation: k = (1 + cos i) / 2
+  const illumination = (1 - Math.cos(elongation * D2R)) / 2;
+  // Waxing while the Moon is east of the Sun (0–12h ahead in RA)
+  const waxing = ((ra - sun.ra) % 24 + 24) % 24 < 12;
+
+  return { name: 'Moon', ra, dec, elongation, distAU, illumination, waxing };
 }

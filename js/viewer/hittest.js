@@ -38,7 +38,7 @@ export function findNearestStar(clickX, clickY, threshold, screenBuf, screenCoun
   const s = stars[si];
   return {
     type: 'star', px: screenBuf[bufIdx], py: screenBuf[bufIdx + 1],
-    mag: s[2], ci: s[3], dist: s[4], spect: s[5], ra: s[0], dec: s[1],
+    mag: s[2], ci: s[3], dist: s[4], spect: s[5], con: s[6], names: s[7], ra: s[0], dec: s[1],
   };
 }
 
@@ -83,13 +83,4 @@ export function findNearestDSO(clickX, clickY, threshold, dsoBuf) {
     if (dist2 < hitR * hitR && dist2 < bestDist) { bestDist = dist2; best = d; }
   }
   return best ? { type: 'dso', ...best } : null;
-}
-
-/**
- * Look up a star's name and constellation by its RA/Dec coordinates.
- * @param {Map} nameMap - The starNameLookup Map ("ra,dec" → {name, con, hipID})
- */
-export function lookupStarName(ra, dec, nameMap) {
-  if (!nameMap) return null;
-  return nameMap.get(ra.toFixed(6) + ',' + dec.toFixed(5)) || null;
 }

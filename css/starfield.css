@@ -19,6 +19,16 @@ body.starfield-standalone {
   position: fixed;
   inset: 0;
   display: block;
+  touch-action: none; /* input.js owns every sky gesture */
+}
+
+/* Notch / home-indicator insets (0 unless viewport-fit=cover on a notched
+   phone), added to every edge offset below */
+:root {
+  --sa-t: env(safe-area-inset-top, 0px);
+  --sa-r: env(safe-area-inset-right, 0px);
+  --sa-b: env(safe-area-inset-bottom, 0px);
+  --sa-l: env(safe-area-inset-left, 0px);
 }
 
 /* --- Viewer UI container (hidden until exploration mode) --- */
@@ -26,12 +36,18 @@ body.starfield-standalone {
 #viewer-ui { display: none; opacity: 0; transition: opacity 0.3s ease; z-index: 30; font-family: monospace; color: #aaa; }
 #viewer-ui.visible { display: block; opacity: 1; }
 
+/* Touch: no page scroll, pinch-zoom or double-tap zoom from the viewer's
+   controls (the page behind would scroll, or the browser zoom the UI);
+   the results list keeps its own vertical scrolling */
+#viewer-ui, body.starfield-standalone { touch-action: none; }
+#search-results { touch-action: pan-y; }
+
 /* --- Info panel (bottom-left) --- */
 
 #info {
   position: fixed;
-  bottom: 0.75rem;
-  left: 0.75rem;
+  bottom: calc(0.75rem + var(--sa-b));
+  left: calc(0.75rem + var(--sa-l));
   z-index: 10;
   background: rgba(0,0,0,0.7);
   padding: 0.5rem 0.75rem;
@@ -64,8 +80,8 @@ body.starfield-standalone {
 
 #clock-panel {
   position: fixed;
-  top: 0.75rem;
-  right: 0.75rem;
+  top: calc(0.75rem + var(--sa-t));
+  right: calc(0.75rem + var(--sa-r));
   z-index: 10;
   background: rgba(0,0,0,0.7);
   padding: 0.5rem 0.75rem;
@@ -83,7 +99,7 @@ body.starfield-standalone {
 
 #time-controls {
   position: fixed;
-  bottom: 0.75rem;
+  bottom: calc(0.75rem + var(--sa-b));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -161,8 +177,8 @@ body.starfield-standalone {
 
 #menu-container {
   position: fixed;
-  bottom: 0.75rem;
-  right: 0.75rem;
+  bottom: calc(0.75rem + var(--sa-b));
+  right: calc(0.75rem + var(--sa-r));
   z-index: 10;
 }
 #menu-toggle {
@@ -213,14 +229,14 @@ body.starfield-standalone {
 
 #search-btn {
   position: fixed;
-  top: 0.75rem;
+  top: calc(0.75rem + var(--sa-t));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
 }
 #search-panel {
   position: fixed;
-  top: 2.5rem;
+  top: calc(2.5rem + var(--sa-t));
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
@@ -230,6 +246,7 @@ body.starfield-standalone {
 #search-panel.visible { display: block; }
 #search-input {
   width: 100%;
+  box-sizing: border-box;
   background: rgba(5,5,16,0.92);
   border: 1px solid rgba(255,255,255,0.25);
   border-radius: 4px;
@@ -260,14 +277,15 @@ body.starfield-standalone {
 .search-result:hover, .search-result.selected { background: rgba(100,180,255,0.15); color: #fff; }
 .sr-type { font-size: 0.8rem; width: 1.2rem; text-align: center; }
 .sr-name { flex: 1; }
+.sr-alt { color: #777; font-size: 0.65rem; margin-left: 0.3rem; }
 .sr-label { color: #666; font-size: 0.6rem; text-transform: uppercase; }
 
 /* --- Object info popup (Stellarium-style, top-left) --- */
 
 #object-popup {
   position: fixed;
-  top: 0.75rem;
-  left: 0.75rem;
+  top: calc(0.75rem + var(--sa-t));
+  left: calc(0.75rem + var(--sa-l));
   z-index: 15;
   background: rgba(5,5,16,0.88);
   border: 1px solid rgba(255,255,255,0.12);
@@ -315,8 +333,8 @@ body.starfield-standalone {
 
 #help-btn {
   position: fixed;
-  bottom: 0.75rem;
-  right: 7.5rem;
+  bottom: calc(0.75rem + var(--sa-b));
+  right: calc(7.5rem + var(--sa-r));
   z-index: 10;
   padding: 0.4rem 0.7rem;
   font: 0.7rem monospace;
@@ -324,8 +342,8 @@ body.starfield-standalone {
 #help-panel {
   display: none;
   position: fixed;
-  bottom: 3rem;
-  right: 0.75rem;
+  bottom: calc(3rem + var(--sa-b));
+  right: calc(0.75rem + var(--sa-r));
   z-index: 20;
   background: rgba(5,5,16,0.94);
   border: 1px solid rgba(255,255,255,0.15);
@@ -338,8 +356,44 @@ body.starfield-standalone {
 }
 #help-panel.visible { display: block; }
 #help-panel ul { list-style: none; margin: 0; padding: 0; }
+/* Keyboard shortcuts for mouse users, touch tips for phones and tablets */
+#help-panel .help-touch { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  #help-panel .help-keys { display: none; }
+  #help-panel .help-touch { display: block; }
+}
 #help-panel li { white-space: nowrap; }
 #help-panel b { color: #8fc7ff; font-weight: 600; }
+#help-panel .help-credit { margin: 0.5rem 0 0; font-size: 0.65rem; color: #666; }
+#help-panel .help-credit a { color: #888; }
+
+/* --- Touch targets: phones/tablets in any orientation, and narrow
+   windows, get a 44px minimum hit area on every control --- */
+
+@media (max-width: 600px), (pointer: coarse) {
+  #time-controls button, #menu-toggle, .ctrl-btn, #overlay-menu button,
+  .search-result, #search-input { min-height: 44px; }
+  #time-controls button, #help-btn { min-width: 44px; }
+  #overlay-menu button { font-size: 0.75rem; white-space: nowrap; }
+  #overlay-menu { bottom: calc(100% + 0.4rem); }               /* clear the taller toggle */
+  #help-panel { bottom: calc(1.6rem + 44px + var(--sa-b)); }   /* clear the taller ? button */
+  #search-panel { top: calc(1.1rem + 44px + var(--sa-t)); }   /* clear the taller Search button */
+  /* Under 16px, iOS Safari zooms the whole page when the field is focused */
+  #search-input { font-size: max(16px, 0.8rem); box-sizing: border-box; }
+}
+
+/* Short landscape phones: stacked 44px rows would run off the top, into
+   the back button, or down over the time bar */
+@media (pointer: coarse) and (max-height: 500px) {
+  #overlay-menu.visible { display: grid; grid-template-columns: repeat(3, 1fr); }
+  #overlay-menu { bottom: calc(100% + 0.8rem); }
+  #help-panel { line-height: 1.5; max-width: min(560px, calc(100vw - 1.5rem)); }
+  #help-panel ul { columns: 2; column-gap: 1.5rem; }
+  #help-panel li { white-space: normal; }
+  #search-results { max-height: calc(100vh - 12rem); }
+  #object-popup { max-width: max(300px, calc(50vw - 5.5rem - var(--sa-l))); } /* stop short of the centered Search button */
+  #info { display: none; } /* developer chrome; collides with the time bar here */
+}
 
 /* --- Small screens --- */
 
@@ -347,17 +401,24 @@ body.starfield-standalone {
   /* The FOV/mag info panel is developer chrome — free the bottom-left */
   #info { display: none; }
 
-  /* Fixed-width panels must not overflow narrow viewports */
+  /* Popup and search open below the top row (Search, clock) instead of over
+     the clock, and span the width so nothing peeks out beside them */
   #object-popup {
     width: auto;
-    left: 0.75rem;
-    right: 0.75rem;
+    left: calc(0.75rem + var(--sa-l));
+    right: calc(0.75rem + var(--sa-r));
     max-width: 340px;
-    top: 3.4rem; /* clear the top-center Search button */
+    top: calc(4.5rem + var(--sa-t));
   }
-  #search-panel { width: calc(100vw - 1.5rem); max-width: 320px; }
+  #search-panel {
+    top: calc(4.5rem + var(--sa-t));
+    left: calc(0.75rem + var(--sa-l));
+    right: calc(0.75rem + var(--sa-r));
+    width: auto;
+    transform: none;
+  }
 
-  /* Bigger touch targets (~40px) for time + control buttons */
+  /* Bigger touch targets for time + control buttons */
   #time-controls button { padding: 0.55rem 0.7rem; font-size: 0.8rem; }
   #menu-toggle, #help-btn, .ctrl-btn { padding: 0.55rem 0.8rem; font-size: 0.75rem; }
 
@@ -365,18 +426,20 @@ body.starfield-standalone {
      against the screen edges — trim it down so it has real margin. */
   @media (max-width: 400px) {
     #time-controls { gap: 0.15rem; padding: 0.25rem 0.35rem; }
-    #time-controls button { padding: 0.4rem 0.4rem; font-size: 0.68rem; min-width: 2rem; }
-    #time-speed { min-width: 1.6rem; font-size: 0.6rem; }
-    #live-indicator { padding: 0.12rem 0.3rem; font-size: 0.55rem; }
+    #time-controls button { padding: 0.4rem 0.4rem; font-size: 0.68rem; }
+    #time-speed { min-width: 1.6rem; font-size: 0.62rem; }
+    #live-indicator { padding: 0.12rem 0.3rem; font-size: 0.62rem; }
   }
 
-  /* Stack Overlays + help above the centered time bar to avoid overlap */
-  #menu-container { bottom: 3.6rem; }
-  #overlay-menu { bottom: 2.8rem; }
-  #help-btn { bottom: 3.6rem; right: 6.2rem; }
-  #help-panel { bottom: 6.4rem; max-width: calc(100vw - 1.5rem); }
+  /* Stack Overlays + help above the centered time bar (44px buttons +
+     padding), and the help panel above them */
+  #menu-container { bottom: calc(1.9rem + 44px + var(--sa-b)); }
+  #help-btn { bottom: calc(1.9rem + 44px + var(--sa-b)); right: calc(6.6rem + var(--sa-r)); }
+  #help-panel { bottom: calc(2.4rem + 88px + var(--sa-b)); max-width: calc(100vw - 1.5rem); }
+  #help-panel li { white-space: normal; }
 
-  /* Clock shrinks so it doesn't crowd the back button */
+  /* Compact clock so the top row fits beside the Search button */
   #clock-panel { font-size: 0.6rem; padding: 0.4rem 0.6rem; }
   #clock-time { font-size: 0.9rem; }
+  .sr-label { font-size: 0.65rem; }
 }

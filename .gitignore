@@ -32,3 +32,13 @@ analytics/
 
 # stray npx artifacts (publish_dir is ./ — never let these become tracked)
 node_modules/
+.venv/
+
+# Milky Way source panorama (baked into data/milkyway.jpg)
+data/eso0932a.jpg
+
+# Elevation tiles downloaded by scripts/build_horizon.py
+data/terrain_cache/
+
+# Python bytecode from importing scripts/
+__pycache__/

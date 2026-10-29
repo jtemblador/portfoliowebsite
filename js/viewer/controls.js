@@ -83,9 +83,9 @@ let _cachedSun = null;
 let _cachedMoon = null;
 let _lastEphemJD = 0;
 
-/** Update planet/Sun/Moon positions if >1 minute has elapsed. */
+/** Update planet/Sun/Moon positions if >1 sim-minute has passed (either direction). */
 export function updateEphemeris(jd) {
-  if (jd - _lastEphemJD > 1 / 1440) {
+  if (Math.abs(jd - _lastEphemJD) > 1 / 1440) {
     _cachedPlanets = planetPositions(jd);
     _cachedSun = sunPosition(jd);
     _cachedMoon = moonPosition(jd);
