@@ -32,3 +32,4 @@ analytics/
 
 # stray npx artifacts (publish_dir is ./ — never let these become tracked)
 node_modules/
+.venv/

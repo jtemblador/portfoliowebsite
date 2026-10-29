@@ -10,7 +10,7 @@ I'm a Computer Science graduate of California State University Dominguez Hills (
 
 **Portfolio** — About me, projects, experience, and contact info. Vanilla HTML, CSS, and JavaScript — no frameworks, no build step.
 
-**Live Star Viewer** — The background is a real-time interactive star viewer rendering the night sky from Fontana, CA. It's built entirely in vanilla JavaScript and Canvas2D across 15 ES modules (~2,400 lines). Click the star icon in the sidebar to enter full exploration mode with drag-to-pan, zoom, search, time controls, and object info popups.
+**Live Star Viewer** — The background is a real-time interactive star viewer rendering the night sky from El Paso, TX. It's built entirely in vanilla JavaScript and Canvas2D across 15 ES modules (~2,400 lines). Click the star icon in the sidebar to enter full exploration mode with drag-to-pan, zoom, search, time controls, and object info popups.
 
 ## Projects
 

@@ -1,7 +1,7 @@
 /**
  * starfield.js — Interactive Star Viewer (Application Shell)
  *
- * Real-time night sky from Fontana, CA (34.09°N, 117.44°W).
+ * Real-time night sky from El Paso, TX (31.76°N, 106.49°W).
  * Camera-frame projection in horizontal space — flat horizon at all azimuths.
  *
  * Architecture:
@@ -105,11 +105,11 @@ function callUpdatePopup() {
 // --- Clock ---
 
 const clockFmt = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'America/Los_Angeles',
+  timeZone: 'America/Denver',
   hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
 });
 const dateFmt = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'America/Los_Angeles',
+  timeZone: 'America/Denver',
   year: 'numeric', month: 'short', day: '2-digit', weekday: 'short',
 });
 
@@ -150,7 +150,7 @@ function updateInfo() {
   const magLimit = fovMagLimit(view.fov);
   const g = (on, key) => on ? `<span style="color:#4f4">[${key}]</span>` : `<span style="color:#555">[${key}]</span>`;
   infoEl.innerHTML =
-    `<b>Fontana, CA</b><br>` +
+    `<b>El Paso, TX</b><br>` +
     `FOV: ${view.fov.toFixed(1)}° | Mag: ${magLimit.toFixed(1)}<br>` +
     g(overlays.altAzGrid, 'G') + ' ' + g(overlays.eqGrid, 'Q') + ' ' +
     g(overlays.ecliptic, 'E') + ' ' + g(toggles.constellations, 'C');
