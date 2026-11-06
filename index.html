@@ -86,8 +86,9 @@
           <p class="sidebar-location">El Paso, TX</p>
           <nav>
             <a href="#about" class="active">About Me</a>
+            <a href="#professional">Experience</a>
             <a href="#projects">Projects</a>
-            <a href="#experience">Experience</a>
+            <a href="#experience">Other Experience</a>
           </nav>
           <a href="assets/resume.pdf"
              target="_blank" rel="noopener noreferrer" class="resume-link">Resume</a>
@@ -135,6 +136,32 @@
             </div>
           </section>
 
+          <!-- Professional Experience Section -->
+          <section id="professional">
+            <h2>Professional Experience</h2>
+            <div class="cards">
+
+              <!-- Card 1: Assessify -->
+              <div class="card">
+                <div class="card-header">
+                  <h3>Data Engineer<span style="font-weight:400; text-transform:none; letter-spacing:normal; font-size:0.85rem; color:var(--text-body);"> | Assessify &middot; Remote</span></h3>
+                  <span>08/2026 - Present</span>
+                </div>
+                <ul class="card-list">
+                  <li><span class="bullet">&#9657;</span> Built, collected, cleaned, validated, and delivered 10M+ California property records and parcel shapes from public county sources.</li>
+                  <li><span class="bullet">&#9657;</span> Analyzed 10M+ property records and computed county- and ZIP-level geographic and market statistics, published on an interactive California property tax map for Assessify's public data page</li>
+                  <li><span class="bullet">&#9657;</span> Collaborated on an interactive statewide parcel map and shipped a live comparable-sales viewer in the user dashboard</li>
+                </ul>
+                <div class="tags">
+                  <span class="tag">ETL Pipelines</span>
+                  <span class="tag">Data Validation</span>
+                  <span class="tag">Geospatial Data</span>
+                  <span class="tag">Data Analysis</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <!-- Projects Section -->
           <section id="projects">
             <h2>Some Things I've Built</h2>
@@ -146,7 +173,7 @@
                    target="_blank" rel="noopener noreferrer"
                    aria-label="Open the OrbitWatch live demo"></a>
                 <div class="card-header">
-                  <h3>OrbitWatch<span style="font-weight:400; text-transform:none; letter-spacing:normal; font-size:0.85rem; color:var(--text-body);"> &middot; Satellite Conjunction Screener</span></h3>
+                  <h3>OrbitWatch<span style="font-weight:400; text-transform:none; letter-spacing:normal; font-size:0.85rem; color:var(--text-body);"></span></h3>
                   <div class="project-links">
                     <a class="visit-btn" href="https://jtemblador.github.io/OrbitWatch/"
                        target="_blank" rel="noopener noreferrer">Visit Website &#8599;</a>
@@ -154,12 +181,12 @@
                        target="_blank" rel="noopener noreferrer">GitHub</a>
                   </div>
                 </div>
-                <p style="color:var(--text-body)">A from-scratch C++ engine that flags close approaches between satellites from real orbital data, validated against CelesTrak SOCRATES and deployed as a live 3D globe.</p>
+                <p style="color:var(--text-body)">Satellite conjunction screening engine that flags close approaches between satellites from LIVE orbital data.</p>
                 <ul class="card-list">
-                  <li><span class="bullet">&#9657;</span> From-scratch C++ SGP4 propagation engine (pybind11) validated to under 1 meter, feeding a coarse/medium/fine screening cascade for miss distance, relative velocity, and RTN geometry</li>
-                  <li><span class="bullet">&#9657;</span> Validated against CelesTrak SOCRATES with epoch-matched data, reproducing 100% of reference conjunctions (25/25, 40/40) to machine precision</li>
-                  <li><span class="bullet">&#9657;</span> Cut the full 16,000-satellite, 24-hour screen from an infeasible ~25&nbsp;GB to 5.4&nbsp;GB and ~5 minutes with a fused C++ pipeline, a node-crossing time filter, and OpenMP, proven byte-identical to the reference</li>
-                  <li><span class="bullet">&#9657;</span> Deployed live on a Cesium.js globe with client-side propagation and zero backend calls per visit, auto-refreshed 3&times;/day by GitHub Actions and backed by ~580 tests</li>
+                  <li><span class="bullet">&#9657;</span> C++ SGP4 propagation engine (pybind11), feeding a coarse/medium/fine screening cascade for miss distance, relative velocity, and RTN geometry</li>
+                  <li><span class="bullet">&#9657;</span> Validated against CelesTrak SOCRATES with epoch-matched data, reproducing 100% of reference conjunctions to machine precision</li>
+                  <li><span class="bullet">&#9657;</span> Cut the full 16,000-satellite, 24-hour screen from an infeasible ~25&nbsp;GB to 5.4&nbsp;GB and ~5 minutes with a fused C++ pipeline, a node-crossing time filter, and OpenMP.</li>
+                  <li><span class="bullet">&#9657;</span> Deployed live on a Cesium.js globe with client-side propagation, auto-refreshed 3&times;/day and backed by ~580 tests</li>
                 </ul>
                 <div class="tags">
                   <span class="tag">C++</span>
@@ -220,36 +247,13 @@
                 </div>
               </div>
 
-              <!-- Project 4: Crypto Market Trend Predictor -->
-              <div class="card">
-                <div class="card-header">
-                  <h3>Crypto Market Trend Predictor</h3>
-                  <div class="project-links">
-                    <a href="https://github.com/jtemblador/crypto-trading-bot"
-                       target="_blank" rel="noopener noreferrer">GitHub</a>
-                  </div>
-                </div>
-                <p style="color:var(--text-body)">A binary classification pipeline predicting cryptocurrency price direction by combining technical indicators with social media sentiment analysis.</p>
-                <ul class="card-list">
-                  <li><span class="bullet">&#9657;</span> Built pipeline combining 5 technical indicators (MACD, RSI, Bollinger Bands, and others) with FinBERT sentiment scores from Reddit and X across 3 live data sources</li>
-                  <li><span class="bullet">&#9657;</span> Integrated Kraken, Reddit, and X APIs for real-time ingestion; applied FinBERT transformer for financial sentiment classification</li>
-                </ul>
-                <div class="tags">
-                  <span class="tag">Python</span>
-                  <span class="tag">XGBoost</span>
-                  <span class="tag">FinBERT</span>
-                  <span class="tag">Machine Learning</span>
-                  <span class="tag">NLP</span>
-                </div>
-              </div>
-
             </div>
 
           </section>
 
           <!-- Experience Section -->
           <section id="experience">
-            <h2>Experience</h2>
+            <h2>Other Experience</h2>
             <div class="cards">
 
               <!-- Card 1: Worship Band Leader -->
@@ -263,7 +267,7 @@
                 </div>
                 <ul class="card-list">
                   <li><span class="bullet">&#9657;</span> Lead a team of 8+ musicians through weekly rehearsals and live performances</li>
-                  <li><span class="bullet">&#9657;</span> Manage scheduling, set lists, and real-time coordination across weekly services and special events</li>
+                  <li><span class="bullet">&#9657;</span> Manage schedules, set lists, and coordinate across weekly services and special events</li>
                   <li><span class="bullet">&#9657;</span> Coordinate with audio/visual tech volunteers to run live sound production</li>
                 </ul>
                 <div class="tags">
