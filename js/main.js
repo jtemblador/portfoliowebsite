@@ -116,7 +116,7 @@ const navLinks = document.querySelectorAll('.sidebar nav a');
 const navObserver = new IntersectionObserver(
   (entries) => {
     entries.forEach((entry) => {
-      if (entry.isIntersecting) {
+      if (entry.isIntersecting && document.querySelector(`.sidebar nav a[href="#${entry.target.id}"]`)) {
         navLinks.forEach((link) => {
           link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id);
         });
