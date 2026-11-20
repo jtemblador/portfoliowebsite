@@ -21,7 +21,7 @@ const CACHE_KEY = 'tle-visual';
 const CACHE_MS = 12 * 3600 * 1000;   // CelesTrak asks for ≤ 1 download per ~2 h
 const MAX_EPOCH_DAYS = 7;            // TLEs drift; hide satellites beyond this
 const ISS_ID = 25544;
-const OBS_ALT_KM = 1.134;            // El Paso elevation
+const OBS_ALT_KM = 0.377;            // Fontana elevation
 const R_EARTH_KM = 6371;
 // Standard magnitude at 1000 km range (rough; most "visual" objects ~3–4)
 const STD_MAG = { 25544: -1.8, 48274: -0.6, 20580: 2.2 }; // ISS, Tiangong, Hubble
